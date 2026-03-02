@@ -80,12 +80,15 @@ func (r *RemoteDB) Query(sql, ref string) (string, error) {
 }
 
 // Exec runs DML via the DoltHub write API on the given branch.
+// The write API accepts only a single statement per call, so multi-statement
+// mutations are sent sequentially. After the first write the branch exists,
+// so subsequent statements read from the branch (not main) to see prior changes.
 func (r *RemoteDB) Exec(branch, _ string, _ bool, stmts ...string) error {
 	if branch == "" {
 		branch = "main"
 	}
 
-	// Determine the from-branch for the write API.
+	// Determine the from-branch for the first write.
 	// If the target branch already exists on the fork, write from that branch
 	// to preserve prior mutations (e.g. claim → done). Otherwise write from main.
 	fromBranch := "main"
@@ -93,22 +96,29 @@ func (r *RemoteDB) Exec(branch, _ string, _ bool, stmts ...string) error {
 		fromBranch = branch
 	}
 
-	// Note: the DoltHub write API auto-commits with the SQL text as the
-	// commit message. Custom commit messages aren't supported — the API
-	// accepts only a single statement and has no session persistence for SET.
-	joined := strings.Join(stmts, ";\n") + ";"
+	for _, stmt := range stmts {
+		if err := r.execOne(fromBranch, branch, stmt); err != nil {
+			return err
+		}
+		// After the first successful write, the branch has data — subsequent
+		// statements must read from it to see the prior changes.
+		fromBranch = branch
+	}
+	return nil
+}
 
+// execOne sends a single DML statement to the DoltHub write API.
+func (r *RemoteDB) execOne(fromBranch, toBranch, stmt string) error {
 	apiURL := fmt.Sprintf("%s/%s/%s/write/%s/%s?q=%s",
 		DoltHubAPIBase, r.writeOwner, r.writeDB,
-		url.PathEscape(fromBranch), url.PathEscape(branch),
-		url.QueryEscape(joined))
+		url.PathEscape(fromBranch), url.PathEscape(toBranch),
+		url.QueryEscape(stmt))
 
 	body, err := r.doPost(apiURL, nil)
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
-	// The write API returns an operation name to poll.
 	var writeResp struct {
 		OperationName         string `json:"operation_name"`
 		QueryExecutionStatus  string `json:"query_execution_status"`
@@ -119,15 +129,12 @@ func (r *RemoteDB) Exec(branch, _ string, _ bool, stmts ...string) error {
 	}
 
 	if writeResp.QueryExecutionStatus == "Error" {
-		return fmt.Errorf("exec error: %s", writeResp.QueryExecutionMessage)
+		return fmt.Errorf("write operation failed: %s", writeResp.QueryExecutionMessage)
 	}
 
-	// If there's an operation to poll, wait for it.
 	if writeResp.OperationName != "" {
 		return r.pollOperation(writeResp.OperationName)
 	}
-
-	// Some writes complete synchronously.
 	return nil
 }
 
