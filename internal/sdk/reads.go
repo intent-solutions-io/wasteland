@@ -36,7 +36,7 @@ func (c *Client) Browse(filter commons.BrowseFilter) (*BrowseResult, error) {
 	// In "all" view, merge upstream PR IDs if the callback is set.
 	view := filter.View
 	if view == "" {
-		view = "mine"
+		view = "all"
 	}
 	if view == "all" && c.ListPendingItems != nil {
 		upstreamIDs, err := c.ListPendingItems()

@@ -53,7 +53,7 @@ func parseQueryFilter(r *http.Request) commons.BrowseFilter {
 
 	view := q.Get("view")
 	if view == "" {
-		view = "mine"
+		view = "all"
 	}
 
 	return commons.BrowseFilter{

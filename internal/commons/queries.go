@@ -228,7 +228,7 @@ func DetectAllBranchOverrides(db DB) ([]BranchOverride, map[string]int) {
 }
 
 // ApplyBranchOverrides adjusts browse results to reflect branch mutations.
-func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverride, statusFilter string) []WantedSummary {
+func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverride, f BrowseFilter) []WantedSummary {
 	if len(overrides) == 0 {
 		return items
 	}
@@ -247,7 +247,7 @@ func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverri
 			if o.ClaimedBy != "" {
 				item.ClaimedBy = o.ClaimedBy
 			}
-			if statusFilter != "" && item.Status != statusFilter {
+			if f.Status != "" && item.Status != f.Status {
 				continue // override made it not match the filter
 			}
 		}
@@ -259,7 +259,7 @@ func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverri
 		if applied[o.WantedID] {
 			continue
 		}
-		if statusFilter != "" && o.Status != statusFilter {
+		if f.Status != "" && o.Status != f.Status {
 			continue
 		}
 		// Try main first; fall back to branch (item may only exist there).
@@ -267,7 +267,7 @@ func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverri
 		if err != nil {
 			item, err = QueryWantedDetailAsOf(db, o.WantedID, o.Branch)
 		}
-		if err == nil {
+		if err == nil && matchesBrowseFilter(item, f) {
 			result = append(result, WantedSummary{
 				ID:          item.ID,
 				Title:       item.Title,
@@ -283,6 +283,30 @@ func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverri
 	}
 
 	return result
+}
+
+// matchesBrowseFilter checks if a WantedItem matches the non-status fields
+// of a BrowseFilter (status is handled separately by the override logic).
+func matchesBrowseFilter(item *WantedItem, f BrowseFilter) bool {
+	if f.Type != "" && item.Type != f.Type {
+		return false
+	}
+	if f.Project != "" && item.Project != f.Project {
+		return false
+	}
+	if f.Priority >= 0 && item.Priority != f.Priority {
+		return false
+	}
+	if f.PostedBy != "" && item.PostedBy != f.PostedBy {
+		return false
+	}
+	if f.ClaimedBy != "" && item.ClaimedBy != f.ClaimedBy {
+		return false
+	}
+	if f.Search != "" && !strings.Contains(strings.ToLower(item.Title), strings.ToLower(f.Search)) {
+		return false
+	}
+	return true
 }
 
 // FindBranchForItem returns the branch name if a mutation branch exists for
@@ -496,7 +520,7 @@ func BrowseWantedBranchAware(db DB, mode, rigHandle string, f BrowseFilter) ([]W
 
 	view := f.View
 	if view == "" {
-		view = "mine"
+		view = "all"
 	}
 
 	if view == "all" {
@@ -504,14 +528,14 @@ func BrowseWantedBranchAware(db DB, mode, rigHandle string, f BrowseFilter) ([]W
 		for id, c := range counts {
 			pendingIDs[id] = c
 		}
-		items = ApplyBranchOverrides(db, items, overrides, f.Status)
+		items = ApplyBranchOverrides(db, items, overrides, f)
 	} else {
 		// "mine": existing behavior
 		overrides := DetectBranchOverrides(db, rigHandle)
 		for _, o := range overrides {
 			pendingIDs[o.WantedID] = 1
 		}
-		items = ApplyBranchOverrides(db, items, overrides, f.Status)
+		items = ApplyBranchOverrides(db, items, overrides, f)
 	}
 	return items, pendingIDs, nil
 }
