@@ -51,15 +51,15 @@ type BrowseFilter struct {
 
 // WantedSummary holds the columns returned by BrowseWanted.
 type WantedSummary struct {
-	ID          string
-	Title       string
-	Project     string
-	Type        string
-	Priority    int
-	PostedBy    string
-	ClaimedBy   string
-	Status      string
-	EffortLevel string
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Project     string `json:"project,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Priority    int    `json:"priority"`
+	PostedBy    string `json:"posted_by,omitempty"`
+	ClaimedBy   string `json:"claimed_by,omitempty"`
+	Status      string `json:"status"`
+	EffortLevel string `json:"effort_level"`
 }
 
 // BrowseWanted queries the wanted board with the given filters.

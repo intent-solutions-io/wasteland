@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/julianknutsen/wasteland/internal/commons"
 	"github.com/julianknutsen/wasteland/internal/federation"
+	"github.com/julianknutsen/wasteland/internal/sdk"
 	"github.com/julianknutsen/wasteland/internal/style"
 	"github.com/spf13/cobra"
 )
@@ -27,6 +29,7 @@ func newBrowseCmd(stdout, stderr io.Writer) *cobra.Command {
 		postedBy  string
 		claimedBy string
 		search    string
+		view      string
 	)
 
 	cmd := &cobra.Command{
@@ -38,6 +41,12 @@ func newBrowseCmd(stdout, stderr io.Writer) *cobra.Command {
 Pulls the latest upstream changes into your local clone and queries it.
 Use --ephemeral to clone to a temp dir instead (slower, for edge cases).
 
+In PR mode, branch mutations are merged into the results (same as the web UI).
+Use --view to control which branches are included:
+  mine      Only your branches (default)
+  all       All rigs' branches
+  upstream  No branch overlay, pure main data
+
 EXAMPLES:
   wl browse                          # All open wanted items
   wl browse --project gastown        # Filter by project
@@ -46,6 +55,7 @@ EXAMPLES:
   wl browse --priority 0             # Critical priority only
   wl browse --limit 5               # Show 5 items
   wl browse --json                   # JSON output
+  wl browse --view all               # Include all rigs' branch mutations
   wl browse --posted-by alice        # Items posted by alice
   wl browse --claimed-by bob         # Items claimed by bob
   wl browse --search auth            # Search in title
@@ -60,6 +70,7 @@ EXAMPLES:
 				PostedBy:  postedBy,
 				ClaimedBy: claimedBy,
 				Search:    search,
+				View:      view,
 			}, jsonOut, ephemeral)
 		},
 	}
@@ -74,12 +85,16 @@ EXAMPLES:
 	cmd.Flags().StringVar(&postedBy, "posted-by", "", "Filter by poster's rig handle")
 	cmd.Flags().StringVar(&claimedBy, "claimed-by", "", "Filter by claimer's rig handle")
 	cmd.Flags().StringVar(&search, "search", "", "Search in title")
+	cmd.Flags().StringVar(&view, "view", "", "Branch view: mine (default), all, or upstream")
 	_ = cmd.RegisterFlagCompletionFunc("project", completeProjectNames)
 	_ = cmd.RegisterFlagCompletionFunc("status", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"open", "claimed", "in_review", "completed", "withdrawn"}, cobra.ShellCompDirectiveNoFileComp
 	})
 	_ = cmd.RegisterFlagCompletionFunc("type", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"feature", "bug", "design", "rfc", "docs", "inference"}, cobra.ShellCompDirectiveNoFileComp
+	})
+	_ = cmd.RegisterFlagCompletionFunc("view", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return []string{"mine", "all", "upstream"}, cobra.ShellCompDirectiveNoFileComp
 	})
 
 	return cmd
@@ -95,20 +110,19 @@ func runBrowse(cmd *cobra.Command, stdout, stderr io.Writer, filter commons.Brow
 		return err
 	}
 
-	query := commons.BuildBrowseQuery(filter)
-
 	if ephemeral {
+		query := commons.BuildBrowseQuery(filter)
 		return runBrowseEphemeral(stdout, cfg, query, jsonOut)
 	}
 
-	if err := runBrowseLocal(stdout, stderr, cfg, query, jsonOut); err != nil {
+	if err := runBrowseLocal(stdout, stderr, cfg, filter, jsonOut); err != nil {
 		return err
 	}
 	warnIfStale(stdout, cfg)
 	return nil
 }
 
-func runBrowseLocal(stdout, stderr io.Writer, cfg *federation.Config, query string, jsonOut bool) error {
+func runBrowseLocal(stdout, stderr io.Writer, cfg *federation.Config, filter commons.BrowseFilter, jsonOut bool) error {
 	spinnerOut := stdout
 	if jsonOut {
 		spinnerOut = stderr
@@ -120,21 +134,57 @@ func runBrowseLocal(stdout, stderr io.Writer, cfg *federation.Config, query stri
 		return fmt.Errorf("pulling upstream: %w", err)
 	}
 
-	if jsonOut {
-		doltPath, _ := exec.LookPath("dolt")
-		sqlCmd := exec.Command(doltPath, "sql", "-q", query, "-r", "json")
-		sqlCmd.Dir = cfg.LocalDir
-		sqlCmd.Stdout = stdout
-		sqlCmd.Stderr = os.Stderr
-		return sqlCmd.Run()
-	}
+	db := openDB(cfg.LocalDir)
+	client := sdk.New(sdk.ClientConfig{
+		DB:        db,
+		RigHandle: cfg.RigHandle,
+		Mode:      cfg.ResolveMode(),
+	})
 
-	csvData, err := commons.DoltSQLQuery(cfg.LocalDir, query)
+	result, err := client.Browse(filter)
 	if err != nil {
-		return fmt.Errorf("querying local database: %w", err)
+		return fmt.Errorf("querying wanted board: %w", err)
 	}
 
-	return renderBrowseCSV(stdout, csvData)
+	if jsonOut {
+		return renderBrowseJSON(stdout, result)
+	}
+	return renderBrowseSummaries(stdout, result)
+}
+
+func renderBrowseSummaries(stdout io.Writer, result *sdk.BrowseResult) error {
+	items := result.Items
+	if len(items) == 0 {
+		fmt.Fprintln(stdout, "No wanted items found matching your filters.")
+		return nil
+	}
+
+	tbl := style.NewTable(
+		style.Column{Name: "ID", Width: 12},
+		style.Column{Name: "TITLE", Width: 40},
+		style.Column{Name: "PROJECT", Width: 12},
+		style.Column{Name: "TYPE", Width: 10},
+		style.Column{Name: "PRI", Width: 4, Align: style.AlignRight},
+		style.Column{Name: "POSTED BY", Width: 16},
+		style.Column{Name: "STATUS", Width: 10},
+		style.Column{Name: "EFFORT", Width: 8},
+	)
+
+	for _, item := range items {
+		pri := wlFormatPriority(fmt.Sprintf("%d", item.Priority))
+		tbl.AddRow(item.ID, item.Title, item.Project, item.Type, pri, item.PostedBy, item.Status, item.EffortLevel)
+	}
+
+	fmt.Fprintf(stdout, "Wanted items (%d):\n\n", len(items))
+	fmt.Fprint(stdout, tbl.Render())
+
+	return nil
+}
+
+func renderBrowseJSON(stdout io.Writer, result *sdk.BrowseResult) error {
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(result.Items)
 }
 
 func runBrowseEphemeral(stdout io.Writer, cfg *federation.Config, query string, jsonOut bool) error {
@@ -174,6 +224,21 @@ func runBrowseEphemeral(stdout io.Writer, cfg *federation.Config, query string, 
 	return renderBrowseTable(stdout, doltPath, cloneDir, query)
 }
 
+func renderBrowseTable(stdout io.Writer, doltPath, cloneDir, query string) error {
+	sqlCmd := exec.Command(doltPath, "sql", "-q", query, "-r", "csv")
+	sqlCmd.Dir = cloneDir
+	output, err := sqlCmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("query failed: %s", string(exitErr.Stderr))
+		}
+		return fmt.Errorf("running query: %w", err)
+	}
+
+	return renderBrowseCSV(stdout, string(output))
+}
+
 func renderBrowseCSV(stdout io.Writer, csvData string) error {
 	rows := wlParseCSV(csvData)
 	if len(rows) <= 1 {
@@ -204,21 +269,6 @@ func renderBrowseCSV(stdout io.Writer, csvData string) error {
 	fmt.Fprint(stdout, tbl.Render())
 
 	return nil
-}
-
-func renderBrowseTable(stdout io.Writer, doltPath, cloneDir, query string) error {
-	sqlCmd := exec.Command(doltPath, "sql", "-q", query, "-r", "csv")
-	sqlCmd.Dir = cloneDir
-	output, err := sqlCmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return fmt.Errorf("query failed: %s", string(exitErr.Stderr))
-		}
-		return fmt.Errorf("running query: %w", err)
-	}
-
-	return renderBrowseCSV(stdout, string(output))
 }
 
 func wlParseCSV(data string) [][]string {

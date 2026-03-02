@@ -14,3 +14,9 @@ var openStore = func(localDir string, signed bool, hopURI string) commons.WLComm
 	store.SetHopURI(hopURI)
 	return store
 }
+
+// openDB creates a commons.DB for the given local database directory.
+// Package-level variable to allow test overrides.
+var openDB = func(localDir string) commons.DB {
+	return backend.NewLocalDB(localDir, "")
+}
