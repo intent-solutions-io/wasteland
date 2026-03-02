@@ -170,17 +170,58 @@ func BranchExists(dbDir, branch string) (bool, error) {
 // CheckoutBranch creates the branch if it doesn't exist, then checks it out.
 // Uses dolt CLI commands (not SQL DOLT_CHECKOUT) because the SQL stored
 // procedure is session-scoped and does not persist across dolt sql invocations.
+// When creating a new branch, prefers origin's remote tracking branch as the
+// start point so the local branch starts with the remote's data.
 func CheckoutBranch(dbDir, branch string) error {
 	exists, err := BranchExists(dbDir, branch)
 	if err != nil {
 		return fmt.Errorf("checking branch %s: %w", branch, err)
 	}
 	if !exists {
-		if err := doltExec(dbDir, "branch", branch); err != nil {
-			return fmt.Errorf("creating branch %s: %w", branch, err)
+		// Prefer creating from origin's tracking branch if it exists,
+		// so the local branch starts with the remote's data (e.g., wanted items
+		// submitted via PRs). Falls back to creating from HEAD (main).
+		remoteBranch := "remotes/origin/" + branch
+		if remoteExists, _ := RemoteBranchExists(dbDir, remoteBranch); remoteExists {
+			if err := doltExec(dbDir, "branch", branch, remoteBranch); err != nil {
+				return fmt.Errorf("creating branch %s from %s: %w", branch, remoteBranch, err)
+			}
+		} else {
+			if err := doltExec(dbDir, "branch", branch); err != nil {
+				return fmt.Errorf("creating branch %s: %w", branch, err)
+			}
 		}
 	}
 	return doltExec(dbDir, "checkout", branch)
+}
+
+// RemoteBranchExists checks whether a remote tracking branch exists in the
+// dolt_remote_branches system table.
+func RemoteBranchExists(dbDir, remoteBranch string) (bool, error) {
+	escaped := strings.ReplaceAll(remoteBranch, "'", "''")
+	out, err := DoltSQLQuery(dbDir, fmt.Sprintf(
+		"SELECT COUNT(*) AS cnt FROM dolt_remote_branches WHERE name = '%s'", escaped))
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		return false, nil
+	}
+	return strings.TrimSpace(lines[1]) != "0", nil
+}
+
+// MergeRemoteTracking merges the origin remote tracking branch into the
+// currently checked-out local branch. If the remote tracking branch doesn't
+// exist or the merge fails, this is a best-effort no-op. Used in PR mode to
+// bring stale local branches up to date with origin's data.
+func MergeRemoteTracking(dbDir, branch string) error {
+	remoteBranch := "remotes/origin/" + branch
+	exists, err := RemoteBranchExists(dbDir, remoteBranch)
+	if err != nil || !exists {
+		return nil
+	}
+	return doltExec(dbDir, "merge", remoteBranch)
 }
 
 // CheckoutBranchFrom checks out a branch if it exists, or creates it from

@@ -7,8 +7,21 @@ import (
 )
 
 // resolveWantedArg resolves a wanted ID or prefix to a full ID using the local database.
+// In PR mode, items may only exist on per-item branches (not on main), so we
+// fall back to querying the item's branch when the main working copy has no match.
 // Package-level variable to allow test overrides.
 var resolveWantedArg = func(cfg *federation.Config, idOrPrefix string) (string, error) {
-	db := backend.NewLocalDB(cfg.LocalDir, "")
-	return commons.ResolveWantedID(db, idOrPrefix)
+	db := backend.NewLocalDB(cfg.LocalDir, cfg.ResolveMode())
+	id, err := commons.ResolveWantedID(db, idOrPrefix)
+	if err == nil {
+		return id, nil
+	}
+	// In PR mode, try the item's branch (wl/<rigHandle>/<id>).
+	if cfg.ResolveMode() == federation.ModePR && cfg.RigHandle != "" {
+		branch := commons.BranchName(cfg.RigHandle, idOrPrefix)
+		if _, found, _ := commons.QueryItemStatus(db, idOrPrefix, branch); found {
+			return idOrPrefix, nil
+		}
+	}
+	return "", err
 }

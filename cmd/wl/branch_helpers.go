@@ -73,6 +73,10 @@ func (m *mutationContext) Setup() (cleanup func(), err error) {
 	if err := commons.CheckoutBranch(m.cfg.LocalDir, m.branch); err != nil {
 		return noop, err
 	}
+	// Sync the local branch with origin's remote tracking branch.
+	// The local branch may be stale (created from main before the remote
+	// had the item data). MergeRemoteTracking is best-effort.
+	_ = commons.MergeRemoteTracking(m.cfg.LocalDir, m.branch)
 	return func() {
 		_ = commons.CheckoutMain(m.cfg.LocalDir)
 	}, nil
