@@ -208,12 +208,12 @@ export function ConnectPage() {
               <li>
                 Generate an API token at{" "}
                 <a
-                  href="https://www.dolthub.com/settings/credentials"
+                  href="https://www.dolthub.com/settings/tokens"
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.link}
                 >
-                  dolthub.com/settings/credentials
+                  dolthub.com/settings/tokens
                 </a>
               </li>
             </ol>
@@ -250,12 +250,12 @@ export function ConnectPage() {
               <span className={styles.fieldHint}>
                 Found at{" "}
                 <a
-                  href="https://www.dolthub.com/settings/credentials"
+                  href="https://www.dolthub.com/settings/tokens"
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.link}
                 >
-                  dolthub.com/settings/credentials
+                  dolthub.com/settings/tokens
                 </a>
                 . Your token is stored securely and never written to disk.
               </span>
