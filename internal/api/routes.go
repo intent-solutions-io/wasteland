@@ -27,6 +27,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/branches/pr/{branch...}", s.handleSubmitPR)
 	s.mux.HandleFunc("GET /api/branches/diff/{branch...}", s.handleBranchDiff)
 
+	// Profile endpoints (read-only, no auth).
+	s.mux.HandleFunc("GET /api/profile/{handle}", s.handleProfile)
+	s.mux.HandleFunc("GET /api/profile", s.handleProfileSearch)
+
 	// Settings endpoints.
 	s.mux.HandleFunc("PUT /api/settings", s.handleSaveSettings)
 	s.mux.HandleFunc("POST /api/sync", s.handleSync)

@@ -7,6 +7,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/julianknutsen/wasteland/internal/pile"
 	"github.com/julianknutsen/wasteland/internal/sdk"
 )
 
@@ -21,6 +22,7 @@ type WorkspaceFunc func(r *http.Request) (*sdk.Workspace, error)
 type Server struct {
 	clientFunc    ClientFunc
 	workspaceFunc WorkspaceFunc
+	pile          pile.RowQuerier
 	mux           *http.ServeMux
 	hosted        bool // true when running in multi-tenant hosted mode
 }
@@ -40,6 +42,7 @@ func NewHosted(fn ClientFunc) *Server {
 		mux:        http.NewServeMux(),
 		hosted:     true,
 	}
+	s.pile = pile.NewDefault()
 	s.registerRoutes()
 	return s
 }
@@ -52,6 +55,7 @@ func NewHostedWorkspace(clientFn ClientFunc, workspaceFn WorkspaceFunc) *Server 
 		mux:           http.NewServeMux(),
 		hosted:        true,
 	}
+	s.pile = pile.NewDefault()
 	s.registerRoutes()
 	return s
 }
@@ -62,8 +66,14 @@ func NewWithClientFunc(fn ClientFunc) *Server {
 		clientFunc: fn,
 		mux:        http.NewServeMux(),
 	}
+	s.pile = pile.NewDefault()
 	s.registerRoutes()
 	return s
+}
+
+// SetProfileQuerier replaces the profile data source (useful for testing).
+func (s *Server) SetProfileQuerier(pq pile.RowQuerier) {
+	s.pile = pq
 }
 
 // ServeHTTP implements http.Handler.

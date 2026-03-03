@@ -80,6 +80,9 @@ export function Layout() {
           <NavLink to="/me" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
             me
           </NavLink>
+          <NavLink to="/profile" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+            profiles
+          </NavLink>
           <NavLink to="/settings" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
             settings
           </NavLink>

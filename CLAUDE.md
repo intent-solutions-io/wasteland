@@ -16,6 +16,7 @@ It was extracted from the gastown monorepo to evolve independently.
 
 - `cmd/wl/` — CLI entry point and command handlers
 - `internal/federation/` — core wasteland protocol (join, config, DoltHub API)
+- `internal/pile/` — read-only DoltHub client for hop/the-pile (profile viewer)
 - `internal/commons/` — wl-commons database operations (wanted board CRUD)
 - `internal/xdg/` — XDG base directory support for config/data paths
 - `internal/style/` — terminal styling with lipgloss (Ayu theme)

@@ -108,6 +108,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 		newDoctorCmd(stdout, stderr),
 		newInferCmd(stdout, stderr),
 		newLeaderboardCmd(stdout, stderr),
+		newProfileCmd(stdout, stderr),
 		newVersionCmd(stdout),
 	)
 	return root

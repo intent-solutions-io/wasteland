@@ -11,6 +11,8 @@ import type {
   JoinInput,
   MutationResponse,
   PostInput,
+  ProfileResponse,
+  ProfileSummary,
   SettingsInput,
   UpdateInput,
 } from "./types";
@@ -237,6 +239,14 @@ export async function leaveWasteland(upstream: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   await request<Record<string, string>>("/api/auth/logout", { method: "POST" });
+}
+
+export async function profile(handle: string): Promise<ProfileResponse> {
+  return request<ProfileResponse>(`/api/profile/${encodeURIComponent(handle)}`);
+}
+
+export async function profileSearch(q: string): Promise<ProfileSummary[]> {
+  return request<ProfileSummary[]>(`/api/profile?q=${encodeURIComponent(q)}`);
 }
 
 export { ApiError };

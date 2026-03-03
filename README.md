@@ -50,6 +50,8 @@ also available as a CLI command.
 wl browse                          # list open items
 wl claim w-abc123                  # claim an item
 wl done w-abc123 --evidence "https://github.com/org/repo/pull/1"
+wl profile torvalds               # look up a developer's character sheet
+wl profile --search steve         # search for profiles
 ```
 
 ### Terminal UI
@@ -130,6 +132,10 @@ The web UI provides:
   review, and recent completions.
 - **Settings** — toggle workflow mode and GPG signing, view federation
   config, sync upstream.
+- **Profiles** — look up developer character sheets from the-pile. Search by
+  handle or name, view skills, value dimensions, notable projects, and
+  reputation stamps. Navigate to `/profile` for search or
+  `/profile/<handle>` for a direct lookup.
 - **Command palette** — press `Cmd+K` (or `Ctrl+K`) to navigate, create
   items, or view keyboard shortcuts.
 - **Post and edit forms** — create or update wanted items with all fields
@@ -454,6 +460,7 @@ internal/
 ├── backend/       DB abstraction: LocalDB (dolt CLI) + RemoteDB (DoltHub API)
 ├── commons/       wl-commons database CRUD operations
 ├── federation/    Core protocol: join, leave, config, sync
+├── pile/          Read-only DoltHub client for hop/the-pile (profile viewer)
 ├── remote/        Provider abstraction: DoltHub, file://, git, GitHub
 ├── sdk/           High-level Client shared by CLI, TUI, and web UI
 ├── style/         Terminal styling (Ayu theme via lipgloss)
@@ -498,6 +505,7 @@ and the SPA from a single process with no external dependencies.
 | `wl config get\|set` | Read or write configuration | |
 | `wl verify` | Check GPG signatures | `--last` |
 | `wl doctor` | Check setup for common issues | `--fix`, `--check` |
+| `wl profile [handle]` | Look up a developer profile | `--search` |
 | `wl me` | Personal dashboard | |
 | `wl tui` | Launch terminal UI | |
 | `wl serve` | Start web UI server | `--port`, `--dev` |

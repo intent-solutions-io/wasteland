@@ -1,0 +1,61 @@
+.page {
+  max-width: 600px;
+}
+
+.heading {
+  color: var(--fg);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin-bottom: var(--space-5);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  outline: none;
+  margin-bottom: var(--space-4);
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  border-bottom: 1px solid var(--border);
+}
+
+.item:hover {
+  background: var(--surface);
+}
+
+.link {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.itemHandle {
+  font-weight: 600;
+  min-width: 150px;
+}
+
+.itemName {
+  color: var(--dim);
+}

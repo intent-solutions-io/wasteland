@@ -1,0 +1,146 @@
+.page {
+  max-width: 800px;
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.name {
+  color: var(--fg);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin: 0;
+}
+
+.handle {
+  color: var(--dim);
+  font-size: var(--text-base);
+}
+
+.bio {
+  color: var(--fg);
+  margin-top: var(--space-2);
+}
+
+.meta {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--dim);
+  font-size: var(--text-sm, 0.875rem);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--steel);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.barLabel {
+  width: 100px;
+  color: var(--dim);
+  font-size: var(--text-base);
+}
+
+.barTrack {
+  flex: 1;
+  height: 12px;
+  background: var(--surface);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.barValue {
+  width: 40px;
+  text-align: right;
+  color: var(--fg);
+  font-size: var(--text-base);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+}
+
+.table th {
+  text-align: left;
+  color: var(--dim);
+  font-weight: 600;
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table td {
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.table tr:hover {
+  background: var(--surface);
+}
+
+.cellName {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.cellScore {
+  text-align: center;
+  color: var(--brass);
+}
+
+.cellEvidence {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.footer {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--dim);
+  font-size: var(--text-base);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.errorText {
+  color: var(--accent);
+}
+
+.dimText {
+  color: var(--dim);
+}

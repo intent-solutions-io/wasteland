@@ -171,3 +171,49 @@ export interface SettingsInput {
   mode: string;
   signing: boolean;
 }
+
+export interface ProfileSkillEntry {
+  name: string;
+  quality: number;
+  reliability: number;
+  creativity: number;
+  confidence: number;
+  message: string;
+}
+
+export interface ProfileProject {
+  name: string;
+  stars: number;
+  languages?: string[];
+  role?: string;
+  impact_tier?: string;
+}
+
+export interface ProfileResponse {
+  handle: string;
+  display_name: string;
+  bio?: string;
+  location?: string;
+  company?: string;
+  avatar_url?: string;
+  source: string;
+  confidence: number;
+  created_at: string;
+  total_repos?: number;
+  total_stars?: number;
+  followers?: number;
+  account_age?: number;
+  quality: number;
+  reliability: number;
+  creativity: number;
+  stamp_count: number;
+  languages?: ProfileSkillEntry[];
+  domains?: ProfileSkillEntry[];
+  capabilities?: ProfileSkillEntry[];
+  notable_projects?: ProfileProject[];
+}
+
+export interface ProfileSummary {
+  handle: string;
+  display_name: string;
+}
