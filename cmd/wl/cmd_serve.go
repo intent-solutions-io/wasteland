@@ -157,14 +157,16 @@ func runServe(cmd *cobra.Command, stdout, stderr io.Writer) error {
 	server := api.New(client)
 
 	generalRL := api.RateLimit(api.NewRateLimiter(120, 120, time.Minute))
-	handler := api.SecurityHeaders(generalRL(api.SPAHandler(server, web.Assets)))
+	bodyLimit := api.MaxBytesBody(64 << 10) // 64 KB
+	handler := api.SecurityHeaders(generalRL(bodyLimit(api.SPAHandler(server, web.Assets))))
 	if devMode {
 		handler = api.CORSMiddleware(handler)
 	}
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Fprintf(stdout, "Wasteland web UI listening on http://localhost%s\n", addr)
-	return http.ListenAndServe(addr, handler) //nolint:gosec // bind addr is user-controlled via --port flag
+	srv := &http.Server{Addr: addr, Handler: handler, MaxHeaderBytes: 1 << 20} //nolint:gosec // bind addr is user-controlled via --port flag
+	return srv.ListenAndServe()
 }
 
 func runServeHosted(cmd *cobra.Command, stdout, stderr io.Writer) error {
@@ -203,7 +205,8 @@ func runServeHosted(cmd *cobra.Command, stdout, stderr io.Writer) error {
 	// Build the hosted server and compose handlers.
 	hostedServer := hosted.NewServer(resolver, sessions, nangoClient, sessionSecret)
 
-	handler := api.SecurityHeaders(hostedServer.Handler(apiServer, web.Assets))
+	bodyLimit := api.MaxBytesBody(64 << 10) // 64 KB
+	handler := api.SecurityHeaders(bodyLimit(hostedServer.Handler(apiServer, web.Assets)))
 	if devMode {
 		handler = api.CORSMiddleware(handler)
 	}
@@ -211,5 +214,6 @@ func runServeHosted(cmd *cobra.Command, stdout, stderr io.Writer) error {
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Fprintf(stdout, "Wasteland hosted mode listening on http://localhost%s\n", addr)
 	fmt.Fprintf(stderr, "  Nango integration: %s\n", nangoClient.IntegrationID())
-	return http.ListenAndServe(addr, handler) //nolint:gosec // bind addr is user-controlled via --port flag
+	srv := &http.Server{Addr: addr, Handler: handler, MaxHeaderBytes: 1 << 20} //nolint:gosec // bind addr is user-controlled via --port flag
+	return srv.ListenAndServe()
 }
