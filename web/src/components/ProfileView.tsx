@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { profile as fetchProfile } from "../api/client";
-import type { ProfileResponse, ProfileSkillEntry, ProfileProject } from "../api/types";
+import type { ProfileProject, ProfileResponse, ProfileSkillEntry } from "../api/types";
 import styles from "./ProfileView.module.css";
 import { SkeletonRows } from "./Skeleton";
 
@@ -14,26 +14,33 @@ export function ProfileView() {
 
   useEffect(() => {
     if (!handle) return;
+    let cancelled = false;
     setLoading(true);
     setError("");
     (async () => {
       try {
-        setData(await fetchProfile(handle));
+        const result = await fetchProfile(handle);
+        if (!cancelled) setData(result);
       } catch (e) {
+        if (cancelled) return;
         const msg = e instanceof Error ? e.message : "Failed to load profile";
         setError(msg);
         toast.error(msg);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [handle]);
 
-  if (loading) return (
-    <div className={styles.page}>
-      <SkeletonRows count={8} />
-    </div>
-  );
+  if (loading)
+    return (
+      <div className={styles.page}>
+        <SkeletonRows count={8} />
+      </div>
+    );
   if (error) return <p className={styles.errorText}>{error}</p>;
   if (!data) return <p className={styles.dimText}>No profile data.</p>;
 
@@ -101,7 +108,8 @@ export function ProfileView() {
 }
 
 function DimensionBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(value * 100);
+  const clamped = Math.max(0, Math.min(1, value));
+  const pct = Math.round(clamped * 100);
   return (
     <div className={styles.barRow}>
       <span className={styles.barLabel}>{label}</span>

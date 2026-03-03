@@ -16,8 +16,8 @@ import (
 	"github.com/julianknutsen/wasteland/internal/backend"
 )
 
-// PileClient is a read-only DoltHub API client for hop/the-pile.
-type PileClient struct {
+// Client is a read-only DoltHub API client for hop/the-pile.
+type Client struct {
 	org    string
 	db     string
 	branch string
@@ -25,10 +25,10 @@ type PileClient struct {
 	client *http.Client
 }
 
-// New creates a PileClient targeting the given org/db on DoltHub.
+// New creates a Client targeting the given org/db on DoltHub.
 // Token is optional for public databases.
-func New(token, org, db string) *PileClient {
-	return &PileClient{
+func New(token, org, db string) *Client {
+	return &Client{
 		org:    org,
 		db:     db,
 		branch: "main",
@@ -37,22 +37,13 @@ func New(token, org, db string) *PileClient {
 	}
 }
 
-// NewDefault creates a PileClient for hop/the-pile with no auth token.
-func NewDefault() *PileClient {
+// NewDefault creates a Client for hop/the-pile with no auth token.
+func NewDefault() *Client {
 	return New("", "hop", "the-pile")
 }
 
-// Query runs a read-only SQL query and returns the result as CSV.
-func (p *PileClient) Query(sql string) (string, error) {
-	body, err := p.queryRaw(sql)
-	if err != nil {
-		return "", err
-	}
-	return backend.JSONToCSV(body)
-}
-
 // queryRaw runs a SQL query and returns the raw DoltHub JSON response body.
-func (p *PileClient) queryRaw(sql string) ([]byte, error) {
+func (p *Client) queryRaw(sql string) ([]byte, error) {
 	apiURL := fmt.Sprintf("%s/%s/%s/%s?q=%s",
 		backend.DoltHubAPIBase, p.org, p.db,
 		url.PathEscape(p.branch), url.QueryEscape(sql))
@@ -69,7 +60,7 @@ func (p *PileClient) queryRaw(sql string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pile query failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -77,14 +68,14 @@ func (p *PileClient) queryRaw(sql string) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("DoltHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("DoltHub API returned %d: %s", resp.StatusCode, truncate(string(body), 200))
 	}
 
 	return body, nil
 }
 
 // QueryRows runs a SQL query and returns parsed JSON rows.
-func (p *PileClient) QueryRows(sql string) ([]map[string]any, error) {
+func (p *Client) QueryRows(sql string) ([]map[string]any, error) {
 	body, err := p.queryRaw(sql)
 	if err != nil {
 		return nil, err
@@ -111,4 +102,11 @@ func (p *PileClient) QueryRows(sql string) ([]map[string]any, error) {
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }

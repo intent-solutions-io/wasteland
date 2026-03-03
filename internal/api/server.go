@@ -22,7 +22,7 @@ type WorkspaceFunc func(r *http.Request) (*sdk.Workspace, error)
 type Server struct {
 	clientFunc    ClientFunc
 	workspaceFunc WorkspaceFunc
-	pile          *pile.PileClient
+	pile          pile.RowQuerier
 	mux           *http.ServeMux
 	hosted        bool // true when running in multi-tenant hosted mode
 }
@@ -69,6 +69,11 @@ func NewWithClientFunc(fn ClientFunc) *Server {
 	s.pile = pile.NewDefault()
 	s.registerRoutes()
 	return s
+}
+
+// SetProfileQuerier replaces the profile data source (useful for testing).
+func (s *Server) SetProfileQuerier(pq pile.RowQuerier) {
+	s.pile = pq
 }
 
 // ServeHTTP implements http.Handler.

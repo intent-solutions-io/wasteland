@@ -1,10 +1,13 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/julianknutsen/wasteland/internal/pile"
 )
+
+const maxProfileSearchLimit = 100
 
 // handleProfile serves GET /api/profile/{handle}
 // Returns a full developer profile from hop/the-pile.
@@ -23,7 +26,11 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 
 	profile, err := pile.QueryProfile(s.pile, handle)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		if errors.Is(err, pile.ErrProfileNotFound) {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusBadGateway, "upstream profile service error")
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, profile)
@@ -44,9 +51,12 @@ func (s *Server) handleProfileSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := parseIntParam(r, "limit", 20)
+	if limit > maxProfileSearchLimit {
+		limit = maxProfileSearchLimit
+	}
 	results, err := pile.SearchProfiles(s.pile, q, limit)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusBadGateway, "upstream profile service error")
 		return
 	}
 	writeJSON(w, http.StatusOK, results)

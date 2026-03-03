@@ -3,7 +3,10 @@ package pile
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
+
+	"github.com/julianknutsen/wasteland/internal/commons"
 )
 
 // Profile is a developer's character sheet assembled from the-pile data.
@@ -41,22 +44,25 @@ type Profile struct {
 
 // SkillEntry represents a skill with valence scores and evidence.
 type SkillEntry struct {
-	Name       string `json:"name"`
-	Quality    int    `json:"quality"`    // 0-5
-	Reliability int   `json:"reliability"` // 0-5
-	Creativity int    `json:"creativity"`  // 0-5
-	Confidence float64 `json:"confidence"`
-	Message    string  `json:"message"`
+	Name        string  `json:"name"`
+	Quality     int     `json:"quality"`     // 0-5
+	Reliability int     `json:"reliability"` // 0-5
+	Creativity  int     `json:"creativity"`  // 0-5
+	Confidence  float64 `json:"confidence"`
+	Message     string  `json:"message"`
 }
 
 // Project is a notable open-source project.
 type Project struct {
-	Name      string   `json:"name"`
-	Stars     int      `json:"stars"`
-	Languages []string `json:"languages,omitempty"`
-	Role      string   `json:"role,omitempty"`
-	ImpactTier string  `json:"impact_tier,omitempty"`
+	Name       string   `json:"name"`
+	Stars      int      `json:"stars"`
+	Languages  []string `json:"languages,omitempty"`
+	Role       string   `json:"role,omitempty"`
+	ImpactTier string   `json:"impact_tier,omitempty"`
 }
+
+// ErrProfileNotFound is returned when a profile handle has no matching record.
+var ErrProfileNotFound = fmt.Errorf("profile not found")
 
 // ProfileSummary is a lightweight profile for search results.
 type ProfileSummary struct {
@@ -64,17 +70,22 @@ type ProfileSummary struct {
 	DisplayName string `json:"display_name"`
 }
 
+// RowQuerier is the interface needed for profile queries (QueryRows only).
+type RowQuerier interface {
+	QueryRows(sql string) ([]map[string]any, error)
+}
+
 // QueryProfile fetches a full developer profile from the-pile.
-func QueryProfile(p *PileClient, handle string) (*Profile, error) {
+func QueryProfile(p RowQuerier, handle string) (*Profile, error) {
 	// Query 1: boot_block for identity, sheet_json, confidence
 	bbRows, err := p.QueryRows(fmt.Sprintf(
 		"SELECT handle, source, sheet_json, confidence, created_at FROM boot_blocks WHERE handle = '%s' LIMIT 1",
-		escapeSQLString(handle)))
+		commons.EscapeSQL(handle)))
 	if err != nil {
 		return nil, fmt.Errorf("querying boot_block: %w", err)
 	}
 	if len(bbRows) == 0 {
-		return nil, fmt.Errorf("profile not found: %s", handle)
+		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, handle)
 	}
 
 	row := bbRows[0]
@@ -85,7 +96,7 @@ func QueryProfile(p *PileClient, handle string) (*Profile, error) {
 	}
 
 	if conf, ok := row["confidence"].(string); ok {
-		fmt.Sscanf(conf, "%f", &profile.Confidence)
+		_, _ = fmt.Sscanf(conf, "%f", &profile.Confidence)
 	} else if conf, ok := row["confidence"].(float64); ok {
 		profile.Confidence = conf
 	}
@@ -93,13 +104,15 @@ func QueryProfile(p *PileClient, handle string) (*Profile, error) {
 	// Parse sheet_json
 	sheetStr := toString(row["sheet_json"])
 	if sheetStr != "" {
-		parseSheetJSON(sheetStr, profile)
+		if err := parseSheetJSON(sheetStr, profile); err != nil {
+			log.Printf("warning: failed to parse sheet_json for %s: %v", handle, err)
+		}
 	}
 
 	// Query 2: stamps for skill evidence
 	stampRows, err := p.QueryRows(fmt.Sprintf(
 		"SELECT skill_tags, valence, confidence, message FROM stamps WHERE subject = '%s' ORDER BY confidence DESC",
-		escapeSQLString(handle)))
+		commons.EscapeSQL(handle)))
 	if err != nil {
 		return nil, fmt.Errorf("querying stamps: %w", err)
 	}
@@ -111,13 +124,14 @@ func QueryProfile(p *PileClient, handle string) (*Profile, error) {
 }
 
 // SearchProfiles searches for profiles matching a query string.
-func SearchProfiles(p *PileClient, query string, limit int) ([]ProfileSummary, error) {
+func SearchProfiles(p RowQuerier, query string, limit int) ([]ProfileSummary, error) {
 	if limit <= 0 {
 		limit = 20
 	}
+	escaped := commons.EscapeSQL(escapeLIKE(query))
 	rows, err := p.QueryRows(fmt.Sprintf(
 		"SELECT handle, display_name FROM rigs WHERE handle LIKE '%%%s%%' OR display_name LIKE '%%%s%%' LIMIT %d",
-		escapeSQLString(query), escapeSQLString(query), limit))
+		escaped, escaped, limit))
 	if err != nil {
 		return nil, fmt.Errorf("searching profiles: %w", err)
 	}
@@ -133,7 +147,7 @@ func SearchProfiles(p *PileClient, query string, limit int) ([]ProfileSummary, e
 }
 
 // parseSheetJSON extracts profile fields from the boot_block sheet_json.
-func parseSheetJSON(raw string, profile *Profile) {
+func parseSheetJSON(raw string, profile *Profile) error {
 	var sheet struct {
 		Identity struct {
 			DisplayName string  `json:"display_name"`
@@ -182,7 +196,7 @@ func parseSheetJSON(raw string, profile *Profile) {
 	}
 
 	if err := json.Unmarshal([]byte(raw), &sheet); err != nil {
-		return
+		return fmt.Errorf("unmarshal sheet_json: %w", err)
 	}
 
 	profile.DisplayName = sheet.Identity.DisplayName
@@ -213,6 +227,7 @@ func parseSheetJSON(raw string, profile *Profile) {
 		profile.TotalStars += np.Stars
 	}
 	profile.TotalRepos = len(sheet.NotableProjects)
+	return nil
 }
 
 // parseStamps categorizes stamps into languages, domains, and capabilities.
@@ -251,7 +266,7 @@ func parseStamps(rows []map[string]any, profile *Profile) {
 
 		var conf float64
 		if c, ok := row["confidence"].(string); ok {
-			fmt.Sscanf(c, "%f", &conf)
+			_, _ = fmt.Sscanf(c, "%f", &conf)
 		} else if c, ok := row["confidence"].(float64); ok {
 			conf = c
 		}
@@ -268,13 +283,13 @@ func parseStamps(rows []map[string]any, profile *Profile) {
 			Message:     msg,
 		}
 
-		// Classify: if the primary tag is a known language, it's a language stamp.
-		// If it contains domain-like keywords, it's a domain. Otherwise capability.
-		if langSet[strings.ToLower(primaryTag)] {
+		// Classify: language, domain, or capability stamp.
+		switch {
+		case langSet[strings.ToLower(primaryTag)]:
 			profile.Languages = append(profile.Languages, entry)
-		} else if isDomainTag(primaryTag) {
+		case isDomainTag(primaryTag):
 			profile.Domains = append(profile.Domains, entry)
-		} else {
+		default:
 			profile.Capabilities = append(profile.Capabilities, entry)
 		}
 	}
@@ -312,6 +327,12 @@ func toString(v any) string {
 	return string(b)
 }
 
-func escapeSQLString(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
+// escapeLIKE escapes SQL LIKE metacharacters so they match literally.
+// Must be called before commons.EscapeSQL so the backslash escapes survive
+// the string-literal layer (EscapeSQL doubles backslashes for MySQL/Dolt).
+func escapeLIKE(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return s
 }

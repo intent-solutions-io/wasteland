@@ -12,29 +12,36 @@ export function ProfileSearch() {
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const requestRef = useRef(0);
+
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
       setResults([]);
       setSearched(false);
       return;
     }
+    const seq = ++requestRef.current;
     setLoading(true);
     try {
       const res = await profileSearch(q);
+      if (seq !== requestRef.current) return;
       setResults(res);
       setSearched(true);
     } catch (e) {
+      if (seq !== requestRef.current) return;
       const msg = e instanceof Error ? e.message : "Search failed";
       toast.error(msg);
     } finally {
-      setLoading(false);
+      if (seq === requestRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(query), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query, doSearch]);
 
   return (
@@ -49,9 +56,7 @@ export function ProfileSearch() {
         autoFocus
       />
       {loading && <p className={styles.dim}>Searching...</p>}
-      {!loading && searched && results.length === 0 && (
-        <p className={styles.dim}>No profiles found.</p>
-      )}
+      {!loading && searched && results.length === 0 && <p className={styles.dim}>No profiles found.</p>}
       {results.length > 0 && (
         <ul className={styles.list}>
           {results.map((r) => (

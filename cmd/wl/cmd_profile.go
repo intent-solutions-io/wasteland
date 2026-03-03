@@ -195,10 +195,21 @@ func runProfileSearch(_ *cobra.Command, stdout, _ io.Writer, query string) error
 }
 
 func printBar(w io.Writer, label string, value float64) {
+	value = clamp01(value)
 	pct := int(value * 100)
 	barLen := int(value * 20)
 	bar := strings.Repeat("\u2588", barLen) + strings.Repeat("\u2591", 20-barLen)
 	fmt.Fprintf(w, "  %s  %s  %d%%\n", label, bar, pct)
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 func truncateField(s string, maxLen int) string {
