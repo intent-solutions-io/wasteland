@@ -693,6 +693,9 @@ func createPRForBranchDoltHub(cfg *federation.Config, doltPath, branch, base str
 // exists on the fork (the write API auto-pushes), so no local dolt is needed.
 func createPRForBranchRemote(cfg *federation.Config, cdb commons.DB, branch string) (string, error) {
 	if cfg.ResolveProviderType() != "dolthub" {
+		if cfg.IsGitHub() {
+			return "", fmt.Errorf("GitHub PRs require local dolt; ensure --local-db is set")
+		}
 		return "", fmt.Errorf("remote backend only supports DoltHub PRs")
 	}
 
@@ -807,9 +810,21 @@ func closePRForBranch(cfg *federation.Config, branch string) error {
 // upstream PRs. Uses a 30-second TTL cache to avoid hammering the API.
 // Returns nil if the provider type does not support PR listing.
 func listPendingItemsFromPRs(cfg *federation.Config) func() (map[string]bool, error) {
-	if cfg.ResolveProviderType() != "dolthub" {
+	switch cfg.ResolveProviderType() {
+	case "dolthub":
+		return dolthubListPendingItems(cfg)
+	case "github":
+		ghPath, err := exec.LookPath("gh")
+		if err != nil {
+			return nil
+		}
+		return ghListPendingItems(ghPath, cfg.Upstream)
+	default:
 		return nil
 	}
+}
+
+func dolthubListPendingItems(cfg *federation.Config) func() (map[string]bool, error) {
 	token := commons.DoltHubToken()
 	if token == "" {
 		return nil
@@ -843,14 +858,64 @@ func listPendingItemsFromPRs(cfg *federation.Config) func() (map[string]bool, er
 	}
 }
 
+func ghListPendingItems(ghPath, upstreamRepo string) func() (map[string]bool, error) {
+	var (
+		mu       sync.Mutex
+		cached   map[string]bool
+		cachedAt time.Time
+		cacheTTL = 30 * time.Second
+	)
+	return func() (map[string]bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if cached != nil && time.Since(cachedAt) < cacheTTL {
+			return cached, nil
+		}
+		out, err := exec.Command(ghPath, "api",
+			fmt.Sprintf("repos/%s/pulls?state=open&per_page=100", upstreamRepo),
+		).CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("listing GitHub PRs: %w", err)
+		}
+		var prs []struct {
+			Head struct {
+				Ref string `json:"ref"`
+			} `json:"head"`
+		}
+		if err := json.Unmarshal(out, &prs); err != nil {
+			return nil, fmt.Errorf("parsing GitHub PRs: %w", err)
+		}
+		ids := make(map[string]bool)
+		for _, pr := range prs {
+			wantedID := extractWantedID(pr.Head.Ref)
+			if wantedID != pr.Head.Ref { // only wl/ prefixed branches
+				ids[wantedID] = true
+			}
+		}
+		cached = ids
+		cachedAt = time.Now()
+		return cached, nil
+	}
+}
+
 // branchURLCallback returns a callback that builds a DoltHub branch URL.
 // Returns nil if the provider is not DoltHub or fork info is missing.
 func branchURLCallback(cfg *federation.Config) func(string) string {
-	if cfg.ResolveProviderType() != "dolthub" || cfg.ForkOrg == "" || cfg.ForkDB == "" {
+	if cfg.ForkOrg == "" || cfg.ForkDB == "" {
 		return nil
 	}
-	return func(branch string) string {
-		return fmt.Sprintf("https://www.dolthub.com/repositories/%s/%s/data/%s",
-			cfg.ForkOrg, cfg.ForkDB, strings.ReplaceAll(branch, "/", "%2F"))
+	switch cfg.ResolveProviderType() {
+	case "dolthub":
+		return func(branch string) string {
+			return fmt.Sprintf("https://www.dolthub.com/repositories/%s/%s/data/%s",
+				cfg.ForkOrg, cfg.ForkDB, strings.ReplaceAll(branch, "/", "%2F"))
+		}
+	case "github":
+		return func(branch string) string {
+			return fmt.Sprintf("https://github.com/%s/%s/tree/%s",
+				cfg.ForkOrg, cfg.ForkDB, strings.ReplaceAll(branch, "/", "%2F"))
+		}
+	default:
+		return nil
 	}
 }

@@ -20,6 +20,9 @@ var openDBFromConfig = func(cfg *federation.Config) (commons.DB, error) {
 	if cfg.ResolveBackend() == federation.BackendLocal {
 		return backend.NewLocalDB(cfg.LocalDir, cfg.ResolveMode()), nil
 	}
+	if cfg.IsGitHub() {
+		return nil, fmt.Errorf("GitHub backend requires local dolt\n\n  Install: https://docs.dolthub.com/introduction/installation\n  Then: wl join --github %s --local-db", cfg.Upstream)
+	}
 	token := commons.DoltHubToken()
 	if token == "" {
 		return nil, fmt.Errorf("DOLTHUB_TOKEN required for remote mode\n\nGet your token from https://www.dolthub.com/settings/tokens")
