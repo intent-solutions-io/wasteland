@@ -81,6 +81,11 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateConnectFields(req.RigHandle, req.ForkOrg, req.ForkDB, req.Upstream); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
 	mode := req.Mode
 	if mode == "" {
 		mode = "pr"
@@ -243,6 +248,11 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	if req.ForkOrg == "" || req.ForkDB == "" || req.Upstream == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "fork_org, fork_db, and upstream are required"})
+		return
+	}
+
+	if err := validateJoinFields(req.ForkOrg, req.ForkDB, req.Upstream); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
