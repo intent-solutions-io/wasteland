@@ -96,7 +96,9 @@ func QueryProfile(p RowQuerier, handle string) (*Profile, error) {
 	}
 
 	if conf, ok := row["confidence"].(string); ok {
-		_, _ = fmt.Sscanf(conf, "%f", &profile.Confidence)
+		if _, err := fmt.Sscanf(conf, "%f", &profile.Confidence); err != nil {
+			slog.Warn("malformed confidence value", "handle", handle, "value", conf)
+		}
 	} else if conf, ok := row["confidence"].(float64); ok {
 		profile.Confidence = conf
 	}
@@ -267,7 +269,9 @@ func parseStamps(rows []map[string]any, profile *Profile) {
 
 		var conf float64
 		if c, ok := row["confidence"].(string); ok {
-			_, _ = fmt.Sscanf(c, "%f", &conf)
+			if _, err := fmt.Sscanf(c, "%f", &conf); err != nil {
+				slog.Warn("malformed stamp confidence", "value", c)
+			}
 		} else if c, ok := row["confidence"].(float64); ok {
 			conf = c
 		}

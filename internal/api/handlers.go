@@ -401,6 +401,7 @@ func (s *Server) handleDiscardBranch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.invalidateAllCaches()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "discarded"})
 }
 

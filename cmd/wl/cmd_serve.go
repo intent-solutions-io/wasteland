@@ -176,7 +176,9 @@ func runServe(cmd *cobra.Command, stdout, stderr io.Writer) error {
 	dumpCache.Start()
 	defer dumpCache.Stop()
 
-	generalRL := api.RateLimit(api.NewRateLimiter(120, 120, time.Minute))
+	rateLimiter := api.NewRateLimiter(120, 120, time.Minute)
+	defer rateLimiter.Stop()
+	generalRL := api.RateLimit(rateLimiter)
 	bodyLimit := api.MaxBytesBody(64 << 10) // 64 KB
 	handler := api.RequestLog(logger)(api.SecurityHeaders(generalRL(bodyLimit(api.SPAHandler(server, web.Assets)))))
 	if devMode {
@@ -251,7 +253,9 @@ func runServeHosted(cmd *cobra.Command, stdout, _ io.Writer) error {
 	// Build the hosted server and compose handlers.
 	hostedServer := hosted.NewServer(resolver, sessions, nangoClient, sessionSecret)
 
-	generalRL := api.RateLimit(api.NewRateLimiter(120, 120, time.Minute))
+	hostedRateLimiter := api.NewRateLimiter(120, 120, time.Minute)
+	defer hostedRateLimiter.Stop()
+	generalRL := api.RateLimit(hostedRateLimiter)
 	bodyLimit := api.MaxBytesBody(64 << 10) // 64 KB
 	handler := api.RequestLog(logger)(api.SecurityHeaders(generalRL(bodyLimit(hostedServer.Handler(apiServer, web.Assets)))))
 	if devMode {

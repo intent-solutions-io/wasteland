@@ -112,8 +112,13 @@ func (t *Table) Render() string {
 			plainVal := stripAnsi(val)
 			plainRunes := []rune(plainVal)
 			if len(plainRunes) > col.Width {
-				val = string(plainRunes[:col.Width-3]) + "..."
-				plainVal = string(plainRunes[:col.Width-3]) + "..."
+				if col.Width >= 4 {
+					val = string(plainRunes[:col.Width-3]) + "..."
+					plainVal = string(plainRunes[:col.Width-3]) + "..."
+				} else {
+					val = string(plainRunes[:col.Width])
+					plainVal = string(plainRunes[:col.Width])
+				}
 			}
 			// Apply column style if set
 			if col.Style.Value() != "" {

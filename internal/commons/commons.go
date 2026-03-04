@@ -773,6 +773,9 @@ func RejectCompletionDML(wantedID string) []string {
 func RejectCompletion(db DB, wantedID, _, reason string, signed bool) error {
 	commitMsg := fmt.Sprintf("wl reject: %s", wantedID)
 	if reason != "" {
+		if len(reason) > 500 {
+			reason = reason[:500] + "..."
+		}
 		commitMsg += " — " + reason
 	}
 

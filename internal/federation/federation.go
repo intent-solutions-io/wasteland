@@ -596,6 +596,7 @@ func (e *execDoltCLI) RegisterRig(localDir, handle, dolthubOrg, displayName, own
 		msg := strings.TrimSpace(string(output))
 		lower := strings.ToLower(msg)
 		if strings.Contains(lower, "nothing to commit") || strings.Contains(lower, "no changes added") {
+			// Rig already registered (ON DUPLICATE KEY UPDATE hit with no changes) — success.
 			return nil
 		}
 		if signed && strings.Contains(lower, "invalid user id") {

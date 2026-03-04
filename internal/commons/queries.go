@@ -268,9 +268,9 @@ func ApplyBranchOverrides(db DB, items []WantedSummary, overrides []BranchOverri
 		if f.Status != "" && o.Status != f.Status {
 			continue
 		}
-		// Try main first; fall back to branch (item may only exist there).
+		// Try main first; fall back to branch only if item not found on main.
 		item, err := QueryWantedDetail(db, o.WantedID)
-		if err != nil {
+		if err != nil && strings.Contains(err.Error(), "not found") {
 			item, err = QueryWantedDetailAsOf(db, o.WantedID, o.Branch)
 		}
 		if err == nil && matchesBrowseFilter(item, f) {

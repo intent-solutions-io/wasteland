@@ -22,7 +22,11 @@ type MutationResult struct {
 func (c *Client) mutate(wantedID, commitMsg string, stmts ...string) (*MutationResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.mutateLocked(wantedID, commitMsg, stmts...)
+}
 
+// mutateLocked is the lock-free variant for callers that already hold c.mu.
+func (c *Client) mutateLocked(wantedID, commitMsg string, stmts ...string) (*MutationResult, error) {
 	if c.mode == "pr" {
 		return c.mutatePR(wantedID, commitMsg, stmts...)
 	}
@@ -124,6 +128,13 @@ func (c *Client) prIdempotent(wantedID, targetStatus string) *MutationResult {
 		return nil
 	}
 	return c.mutatePRResult(wantedID, branch, mainStatus)
+}
+
+// prIdempotentLocked is an alias for prIdempotent used by callers that already
+// hold c.mu. The idempotent check itself does not need the mutex (read-only DB
+// queries), but is named explicitly to make the locking contract clear.
+func (c *Client) prIdempotentLocked(wantedID, targetStatus string) *MutationResult {
+	return c.prIdempotent(wantedID, targetStatus)
 }
 
 // mutatePRResult reads the current branch state and builds a MutationResult.

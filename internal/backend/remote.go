@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -408,7 +409,10 @@ func (r *RemoteDB) branchHasData(branch string) bool {
 	sql := fmt.Sprintf("SELECT COUNT(*) AS cnt FROM wanted WHERE id='%s'", wantedID)
 	csv, err := r.queryForkBranch(sql, branch)
 	if err != nil {
-		// Branch probably doesn't exist — start from main.
+		// Branch may not exist, or this could be a transient error.
+		// Defaulting to false (start from main) is safe — the write API
+		// replays from main, which is correct for a new or missing branch.
+		slog.Debug("branchHasData check failed, assuming no data", "branch", branch, "error", err)
 		return false
 	}
 	lines := strings.Split(strings.TrimSpace(csv), "\n")
@@ -496,8 +500,11 @@ func (r *RemoteDB) pollOperation(operationName string) error {
 	var lastErr error
 	consecutiveErrors := 0
 
-	for time.Now().Before(deadline) {
+	for {
 		time.Sleep(backoff)
+		if time.Now().After(deadline) {
+			break
+		}
 
 		apiURL := fmt.Sprintf("%s/%s/%s/write?operationName=%s",
 			DoltHubAPIBase, r.writeOwner, r.writeDB, operationName)

@@ -103,16 +103,17 @@ func (c *Client) BranchDiff(branch string) (string, error) {
 
 // SaveSettings persists mode and signing settings, updating the client's state.
 func (c *Client) SaveSettings(mode string, signing bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.SaveConfig == nil {
 		return fmt.Errorf("settings persistence not available")
 	}
 	if err := c.SaveConfig(mode, signing); err != nil {
 		return err
 	}
-	c.mu.Lock()
 	c.mode = mode
 	c.signing = signing
-	c.mu.Unlock()
 	return nil
 }
 

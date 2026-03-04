@@ -1,12 +1,12 @@
 package inference
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -58,7 +58,7 @@ func Run(j *Job) (*Result, error) {
 		return nil, fmt.Errorf("marshaling ollama request: %w", err)
 	}
 
-	resp, err := client.Post(OllamaURL+"/api/generate", "application/json", strings.NewReader(string(body)))
+	resp, err := client.Post(OllamaURL+"/api/generate", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("calling ollama: %w", err)
 	}

@@ -56,7 +56,12 @@ func (c *Client) Done(wantedID, evidence string) (*MutationResult, error) {
 
 // Accept validates a completion, creates a stamp, and marks the item completed.
 func (c *Client) Accept(wantedID string, input AcceptInput) (*MutationResult, error) {
-	if result := c.prIdempotent(wantedID, "completed"); result != nil {
+	// Hold the mutex for the entire operation to prevent concurrent Accept()
+	// calls from both passing the idempotent check on the same completion.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if result := c.prIdempotentLocked(wantedID, "completed"); result != nil {
 		return result, nil
 	}
 
@@ -64,6 +69,9 @@ func (c *Client) Accept(wantedID string, input AcceptInput) (*MutationResult, er
 	completion, err := commons.QueryCompletion(c.db, wantedID)
 	if err != nil {
 		return nil, fmt.Errorf("querying completion: %w", err)
+	}
+	if completion == nil {
+		return nil, fmt.Errorf("no completion found for item %s", wantedID)
 	}
 
 	// Self-accept guard: the accepting rig must not be the one who completed the work.
@@ -85,7 +93,7 @@ func (c *Client) Accept(wantedID string, input AcceptInput) (*MutationResult, er
 	}
 
 	stmts := commons.AcceptCompletionDML(wantedID, completion.ID, c.rigHandle, c.hopURI, stamp)
-	return c.mutate(wantedID, "wl accept: "+wantedID, stmts...)
+	return c.mutateLocked(wantedID, "wl accept: "+wantedID, stmts...)
 }
 
 // Reject rejects a completion, reverting the item from in_review to claimed.
@@ -96,6 +104,9 @@ func (c *Client) Reject(wantedID, reason string) (*MutationResult, error) {
 	stmts := commons.RejectCompletionDML(wantedID)
 	msg := "wl reject: " + wantedID
 	if reason != "" {
+		if len(reason) > 500 {
+			reason = reason[:500] + "..."
+		}
 		msg += " — " + reason
 	}
 	return c.mutate(wantedID, msg, stmts...)
@@ -123,7 +134,8 @@ func (c *Client) Delete(wantedID string) (*MutationResult, error) {
 			defer c.mu.Unlock()
 			c.cleanupBranch(branch)
 			return &MutationResult{
-				Hint: "branch-only item — branch deleted",
+				Branch: branch,
+				Hint:   "branch-only item — branch deleted",
 			}, nil
 		}
 	}

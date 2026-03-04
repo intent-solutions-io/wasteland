@@ -66,6 +66,8 @@ func (m *acceptFormModel) focusCurrent() {
 		m.quality.Focus()
 	case 1:
 		m.reliability.Focus()
+	case 2:
+		// Severity uses index cycling (←/→), not a text input — no focus needed.
 	case 3:
 		m.skills.Focus()
 	case 4:

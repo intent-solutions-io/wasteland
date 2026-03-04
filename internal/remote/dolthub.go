@@ -216,6 +216,7 @@ func (d *DoltHubProvider) pollForkOperation(operationName, forkOrg, forkDB strin
 }
 
 // forkRESTFallback falls back to the exists-check when the REST API fork fails.
+// The originalErr parameter provides context about why the REST fork failed.
 func (d *DoltHubProvider) forkRESTFallback(fromOrg, fromDB, toOrg string, _ error) error {
 	if d.databaseExists(toOrg, fromDB) {
 		return nil
@@ -384,14 +385,14 @@ func (d *DoltHubProvider) listPulls(upstreamOrg, db string) ([]pullSummary, erro
 	for {
 		body, err := d.dolthubGet(listURL)
 		if err != nil {
-			return all, err
+			return nil, err
 		}
 		var page struct {
 			Pulls         []pullSummary `json:"pulls"`
 			NextPageToken string        `json:"next_page_token"`
 		}
 		if err := json.Unmarshal(body, &page); err != nil {
-			return all, err
+			return nil, err
 		}
 		all = append(all, page.Pulls...)
 		if page.NextPageToken == "" {
@@ -410,7 +411,7 @@ func (d *DoltHubProvider) listPulls(upstreamOrg, db string) ([]pullSummary, erro
 // detail to match on from_branch and from_branch_owner.
 func (d *DoltHubProvider) FindPR(upstreamOrg, db, forkOrg, fromBranch string) (prURL, prID string) {
 	pulls, err := d.listPulls(upstreamOrg, db)
-	if err != nil && len(pulls) == 0 {
+	if err != nil {
 		return "", ""
 	}
 

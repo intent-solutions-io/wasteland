@@ -94,7 +94,7 @@ func (wr *WorkspaceResolver) InvalidateConnection(connectionID string) {
 	delete(wr.cache, connectionID)
 }
 
-func (wr *WorkspaceResolver) buildClient(wl *WastelandConfig, rigHandle, connectionID, apiKey string, fullMeta *UserMetadata) (*sdk.Client, error) {
+func (wr *WorkspaceResolver) buildClient(wl *WastelandConfig, rigHandle, connectionID, apiKey string, _ *UserMetadata) (*sdk.Client, error) {
 	upOrg, upDB, err := federation.ParseUpstream(wl.Upstream)
 	if err != nil {
 		return nil, fmt.Errorf("parsing upstream %q: %w", wl.Upstream, err)
@@ -171,13 +171,14 @@ func (wr *WorkspaceResolver) buildClient(wl *WastelandConfig, rigHandle, connect
 				return fmt.Errorf("reading metadata for save: %w", err)
 			}
 			if currentMeta == nil {
-				currentMeta = fullMeta
+				return fmt.Errorf("no metadata found for connection %s", connectionID)
 			}
 			entry := currentMeta.FindWasteland(upstream)
-			if entry != nil {
-				entry.Mode = mode
-				entry.Signing = signing
+			if entry == nil {
+				return fmt.Errorf("wasteland %s not found in metadata", upstream)
 			}
+			entry.Mode = mode
+			entry.Signing = signing
 			return wr.nango.SetMetadata(connectionID, currentMeta)
 		},
 	})

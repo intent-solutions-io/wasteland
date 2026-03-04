@@ -17,6 +17,7 @@ type RateLimiter struct {
 	burst    int           // max tokens (bucket capacity)
 	interval time.Duration // how often tokens are added
 	done     chan struct{}
+	stopOnce sync.Once
 }
 
 type bucket struct {
@@ -38,9 +39,9 @@ func NewRateLimiter(rate int, burst int, interval time.Duration) *RateLimiter {
 	return rl
 }
 
-// Stop halts the background cleanup goroutine.
+// Stop halts the background cleanup goroutine. Safe to call multiple times.
 func (rl *RateLimiter) Stop() {
-	close(rl.done)
+	rl.stopOnce.Do(func() { close(rl.done) })
 }
 
 // Allow checks whether a request from the given key should be allowed.

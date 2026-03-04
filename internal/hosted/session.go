@@ -89,13 +89,15 @@ func (s *SessionStore) Delete(id string) {
 }
 
 // Restore re-creates a session from cookie data after a server restart.
+// The original creation time is unknown, so the session gets a reduced TTL
+// (half the normal sessionTTL) to limit how much a restart can extend a session.
 func (s *SessionStore) Restore(sessionID, connectionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[sessionID] = &UserSession{
 		ID:           sessionID,
 		ConnectionID: connectionID,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().Add(-sessionTTL / 2),
 	}
 }
 
