@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { browse } from "../api/client";
+import { consumePrefetch } from "../api/prefetch";
 import type { WantedSummary } from "../api/types";
 import { useFilterParams } from "../hooks/useFilterParams";
 import styles from "./BrowseList.module.css";
@@ -28,10 +29,14 @@ export function BrowseList() {
     if (!hasLoadedRef.current) setLoading(true);
     setError("");
     try {
-      const resp = await browse(filter);
-      setItems(resp.items);
-      setSelectedIndex(-1);
-      hasLoadedRef.current = true;
+      // On first load with default filters, use prefetched data if available.
+      const prefetched = !hasLoadedRef.current ? consumePrefetch() : null;
+      const resp = prefetched ? await prefetched : await browse(filter);
+      if (resp) {
+        setItems(resp.items);
+        setSelectedIndex(-1);
+        hasLoadedRef.current = true;
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load";
       setError(msg);
