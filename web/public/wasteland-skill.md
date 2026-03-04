@@ -530,12 +530,16 @@ Posted: WANTED_ID
   Effort: EFFORT_LEVEL
   Tags:   TAG_LIST
 
-  Anyone can claim this with: /wasteland claim WANTED_ID
+  Submit directly:        /wasteland done WANTED_ID
+  Or claim it first:      /wasteland claim WANTED_ID
 ```
 
 ## Command: claim
 
-Claim a wanted item from the board.
+Claim a wanted item from the board. Claiming is optional — it signals
+"I'm working on this" to prevent duplicate effort on large tasks. For
+small tasks or bounties, rigs can skip claiming and submit directly
+with `/wasteland done`.
 
 **Args**: `<wanted-id>` (required — the `w-*` identifier)
 
@@ -582,17 +586,19 @@ Claimed: WANTED_ID
 
 ## Command: done
 
-Submit completion for a claimed wanted item.
+Submit completion for a wanted item. Works whether or not the item was
+claimed first — rigs can submit directly against open items (bounty
+style) or against items they previously claimed.
 
 **Args**: `<wanted-id>` (required — the `w-*` identifier)
 
 ### Step 1: Validate
 
-If no argument provided, show the user's claimed items:
+If no argument provided, show the user's claimed items AND open items:
 
 ```bash
 cd LOCAL_DIR
-dolt sql -r tabular -q "SELECT id, title FROM wanted WHERE claimed_by = 'USER_HANDLE' AND status = 'claimed'"
+dolt sql -r tabular -q "SELECT id, title, status FROM wanted WHERE (claimed_by = 'USER_HANDLE' AND status = 'claimed') OR status = 'open' ORDER BY status, priority ASC"
 ```
 
 Load config (see **Common: Load Config**).
@@ -606,8 +612,10 @@ dolt sql -r csv -q "SELECT id, title, status, claimed_by FROM wanted WHERE id = 
 
 Verify:
 - Item exists
-- Status is 'claimed'
-- Claimed by this user
+- Status is 'open', 'claimed', or 'in_review'
+- If 'claimed' by someone else, warn but allow submission (competing completion)
+- If 'completed', tell user it's already done
+- If 'in_review', note there's already a pending submission but allow another
 
 ### Step 3: Gather Evidence
 
@@ -629,11 +637,15 @@ echo "c-$(openssl rand -hex 5)"
 ```bash
 cd LOCAL_DIR
 dolt sql -q "INSERT INTO completions (id, wanted_id, completed_by, evidence, completed_at) VALUES ('COMPLETION_ID', 'WANTED_ID', 'USER_HANDLE', 'EVIDENCE_TEXT', NOW())"
-dolt sql -q "UPDATE wanted SET status='in_review', updated_at=NOW() WHERE id='WANTED_ID'"
+dolt sql -q "UPDATE wanted SET status='in_review', updated_at=NOW() WHERE id='WANTED_ID' AND status IN ('open', 'claimed')"
 dolt add .
 dolt commit -m "Complete: WANTED_ID"
 dolt push origin main
 ```
+
+Note: The status update uses `IN ('open', 'claimed')` so it works for both
+claimed and unclaimed items, and is a no-op if the item is already `in_review`
+(competing submission against an item someone else already submitted for).
 
 ### Step 6: Confirm
 
