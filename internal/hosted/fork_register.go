@@ -3,6 +3,8 @@ package hosted
 import (
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/julianknutsen/wasteland/internal/backend"
 	"github.com/julianknutsen/wasteland/internal/commons"
@@ -21,7 +23,7 @@ type DoltHubForkRegistrar struct{}
 
 // EnsureForkAndRegister forks the upstream database and registers the rig.
 // All steps are idempotent. Returns "" on success or a warning message.
-func (d *DoltHubForkRegistrar) EnsureForkAndRegister(apiKey, upstream, forkOrg, forkDB, rigHandle, displayName, email string) string {
+func (d *DoltHubForkRegistrar) EnsureForkAndRegister(apiKey, upstream, forkOrg, _, rigHandle, displayName, email string) string {
 	if apiKey == "" {
 		return "no API key available — fork and registration skipped"
 	}
@@ -39,11 +41,28 @@ func (d *DoltHubForkRegistrar) EnsureForkAndRegister(apiKey, upstream, forkOrg, 
 	}
 
 	// 2. Register rig on a branch via the DoltHub SQL API.
-	db := backend.NewRemoteDB(apiKey, upstreamOrg, upstreamDB, forkOrg, forkDB, federation.ModePR)
+	// Write DB must be upstreamDB (fork preserves the original DB name on DoltHub).
+	db := backend.NewRemoteDB(apiKey, upstreamOrg, upstreamDB, forkOrg, upstreamDB, federation.ModePR)
 	branch := fmt.Sprintf("wl/register/%s", rigHandle)
 	regSQL := commons.BuildRegistrationSQL(rigHandle, forkOrg, displayName, email, "hosted")
-	if err := db.Exec(branch, "", false, regSQL); err != nil {
-		return fmt.Sprintf("rig registration failed: %v", err)
+	// Retry with backoff — newly created forks may take a moment to become
+	// available on the DoltHub SQL write API.
+	var execErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+		execErr = db.Exec(branch, "", false, regSQL)
+		if execErr == nil {
+			break
+		}
+		if !strings.Contains(execErr.Error(), "no such repository") {
+			break // non-retryable error
+		}
+		slog.Info("fork registrar: fork not yet available, retrying", "attempt", attempt+1, "error", execErr)
+	}
+	if execErr != nil {
+		return fmt.Sprintf("rig registration failed: %v", execErr)
 	}
 
 	// 3. Open PR (best-effort).
