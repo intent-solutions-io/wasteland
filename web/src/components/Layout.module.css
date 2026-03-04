@@ -45,7 +45,7 @@
 .navLink {
   padding: 6px 14px;
   border-radius: var(--radius-sm);
-  color: var(--fg-muted);
+  color: var(--accent-light);
   background: transparent;
   text-decoration: none;
   font-weight: 400;
