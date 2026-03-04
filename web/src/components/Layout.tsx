@@ -11,7 +11,7 @@ export function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const navigate = useNavigate();
-  const { wastelands, active, switchTo } = useWasteland();
+  const { wastelands, active, authenticated, switchTo } = useWasteland();
 
   const { register, getCommands, subscribe } = useCommandRegistry();
   const commands = useSyncExternalStore(subscribe, getCommands);
@@ -84,18 +84,26 @@ export function Layout() {
           <NavLink to="/" end className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
             board
           </NavLink>
-          <NavLink to="/me" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
-            me
-          </NavLink>
+          {authenticated && (
+            <NavLink to="/me" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+              me
+            </NavLink>
+          )}
           <NavLink to="/profile" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
             profiles
           </NavLink>
           <NavLink to="/scoreboard" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
             scoreboard
           </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
-            settings
-          </NavLink>
+          {authenticated ? (
+            <NavLink to="/settings" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+              settings
+            </NavLink>
+          ) : (
+            <NavLink to="/connect" className={({ isActive }) => (isActive ? styles.navLinkActive : styles.navLink)}>
+              sign in
+            </NavLink>
+          )}
         </nav>
         <main id="main-content" className={styles.main}>
           <Outlet />

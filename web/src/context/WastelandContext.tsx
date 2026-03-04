@@ -6,6 +6,7 @@ import type { WastelandConfig } from "../api/types";
 interface WastelandContextValue {
   wastelands: WastelandConfig[];
   active: string | null;
+  authenticated: boolean;
   switchTo: (upstream: string) => void;
   refresh: () => Promise<void>;
 }
@@ -13,6 +14,7 @@ interface WastelandContextValue {
 const WastelandContext = createContext<WastelandContextValue>({
   wastelands: [],
   active: null,
+  authenticated: false,
   switchTo: () => {},
   refresh: async () => {},
 });
@@ -64,7 +66,12 @@ export function WastelandProvider({ children }: { children: ReactNode }) {
     [applyActive],
   );
 
-  const value = useMemo(() => ({ wastelands, active, switchTo, refresh }), [wastelands, active, switchTo, refresh]);
+  const authenticated = wastelands.length > 0;
+
+  const value = useMemo(
+    () => ({ wastelands, active, authenticated, switchTo, refresh }),
+    [wastelands, active, authenticated, switchTo, refresh],
+  );
 
   return <WastelandContext.Provider value={value}>{children}</WastelandContext.Provider>;
 }

@@ -61,7 +61,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Redirect to /connect on auth failures in hosted mode.
   if (resp.status === 401 || resp.status === 412) {
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/connect")) {
-      window.location.href = "/connect";
+      const returnTo = window.location.pathname + window.location.search;
+      window.location.href = `/connect?return_to=${encodeURIComponent(returnTo)}`;
       // Return a never-resolving promise to prevent callers from processing stale data.
       return new Promise<T>(() => {});
     }

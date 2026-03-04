@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { authStatus, connectSession, joinWasteland, notifyConnect } from "../api/client";
 import { connectDoltHub, initNango } from "../api/nango";
@@ -9,7 +9,11 @@ import styles from "./ConnectPage.module.css";
 export function ConnectPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { refresh } = useWasteland();
+
+  const rawReturnTo = searchParams.get("return_to");
+  const returnTo = rawReturnTo && /^\/[^/]/.test(rawReturnTo) ? rawReturnTo : null;
   const [view, setView] = useState<"connect" | "join">("connect");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +43,7 @@ export function ConnectPage() {
           if (location.pathname === "/join") {
             setView("join");
           } else {
-            navigate("/", { replace: true });
+            navigate(returnTo ?? "/", { replace: true });
             return;
           }
         }
@@ -49,7 +53,7 @@ export function ConnectPage() {
         setLoading(false);
       }
     })();
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, returnTo]);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +85,7 @@ export function ConnectPage() {
 
       await refresh();
       toast.success("Connected to DoltHub");
-      navigate("/", { replace: true });
+      navigate(returnTo ?? "/", { replace: true });
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "Connection failed");
     } finally {
@@ -106,7 +110,7 @@ export function ConnectPage() {
 
       await refresh();
       toast.success("Joined wasteland");
-      navigate("/", { replace: true });
+      navigate(returnTo ?? "/", { replace: true });
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "Join failed");
     } finally {
@@ -118,6 +122,7 @@ export function ConnectPage() {
 
   return (
     <div className={styles.page}>
+      {returnTo && <p className={styles.hint}>Sign in to continue.</p>}
       <h2 className={styles.heading}>{view === "join" ? "Join a Wasteland" : "Connect to Wasteland"}</h2>
 
       {view === "join" && (
@@ -169,7 +174,7 @@ export function ConnectPage() {
           </div>
 
           <div className={styles.actions}>
-            <button type="button" className={styles.secondaryBtn} onClick={() => navigate("/settings")}>
+            <button type="button" className={styles.secondaryBtn} onClick={() => navigate(returnTo ?? "/")}>
               Cancel
             </button>
             <button type="submit" className={styles.primaryBtn} disabled={submitting}>
@@ -333,6 +338,9 @@ export function ConnectPage() {
           )}
 
           <div className={styles.actions}>
+            <button type="button" className={styles.secondaryBtn} onClick={() => navigate(returnTo ?? "/")}>
+              Cancel
+            </button>
             <button type="submit" className={styles.primaryBtn} disabled={submitting}>
               {submitting ? "Connecting..." : "Connect"}
             </button>
