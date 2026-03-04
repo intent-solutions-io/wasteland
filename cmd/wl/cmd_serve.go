@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/julianknutsen/wasteland/internal/api"
@@ -17,6 +18,7 @@ import (
 	"github.com/julianknutsen/wasteland/internal/commons"
 	"github.com/julianknutsen/wasteland/internal/federation"
 	"github.com/julianknutsen/wasteland/internal/hosted"
+	"github.com/julianknutsen/wasteland/internal/remote"
 	"github.com/julianknutsen/wasteland/internal/sdk"
 	"github.com/julianknutsen/wasteland/internal/style"
 	"github.com/julianknutsen/wasteland/web"
@@ -248,7 +250,11 @@ func runServeHosted(cmd *cobra.Command, stdout, _ io.Writer) error {
 	defer hostedDumpCache.Stop()
 
 	// Anonymous client for unauthenticated public reads (browse, detail, etc.).
-	anonClient := sdk.New(sdk.ClientConfig{DB: publicDB})
+	// Uses a tokenless DoltHub provider — the API is public for public repos.
+	anonClient := sdk.New(sdk.ClientConfig{
+		DB:               publicDB,
+		ListPendingItems: publicListPendingItems("hop", "wl-commons"),
+	})
 	apiServer.SetPublicClient(anonClient)
 
 	// Build the hosted server and compose handlers.
@@ -289,5 +295,49 @@ func newDumpRefresh(db commons.DB) func() ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(api.ToScoreboardDumpResponse(dump))
+	}
+}
+
+// publicListPendingItems returns a ListPendingItems callback that queries the
+// DoltHub API without a token. The DoltHub REST and SQL APIs are public for
+// public repos, so this works for the logged-out experience.
+func publicListPendingItems(upstreamOrg, db string) func() (map[string][]sdk.PendingItem, error) {
+	provider := remote.NewDoltHubProvider("")
+
+	var (
+		mu       sync.Mutex
+		cached   map[string][]sdk.PendingItem
+		cachedAt time.Time
+		cacheTTL = 30 * time.Second
+	)
+
+	return func() (map[string][]sdk.PendingItem, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if cached != nil && time.Since(cachedAt) < cacheTTL {
+			return cached, nil
+		}
+		states, err := provider.ListPendingWantedIDs(upstreamOrg, db)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[string][]sdk.PendingItem, len(states))
+		for id, pending := range states {
+			items := make([]sdk.PendingItem, len(pending))
+			for i, p := range pending {
+				items[i] = sdk.PendingItem{
+					RigHandle: p.RigHandle,
+					Status:    p.Status,
+					ClaimedBy: p.ClaimedBy,
+					Branch:    p.Branch,
+					BranchURL: p.BranchURL,
+					PRURL:     p.PRURL,
+				}
+			}
+			result[id] = items
+		}
+		cached = result
+		cachedAt = time.Now()
+		return cached, nil
 	}
 }
