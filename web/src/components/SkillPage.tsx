@@ -53,9 +53,8 @@ export function SkillPage() {
       </div>
 
       <p className={styles.intro}>
-        Drop this file into <code>.claude/skills/wasteland.md</code> to get{" "}
-        <code>/wasteland</code> commands in Claude Code — join, browse, post,
-        claim, and complete work in any Wasteland.
+        Drop this file into <code>.claude/skills/wasteland.md</code> to get <code>/wasteland</code> commands in Claude
+        Code — join, browse, post, claim, and complete work in any Wasteland.
       </p>
 
       <pre className={styles.codeBlock}>{content}</pre>
