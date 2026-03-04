@@ -313,17 +313,20 @@ func (r *RemoteDB) queryForkBranch(sql, branch string) (string, error) {
 }
 
 // parseDiffTables extracts table names from a dolt_diff CSV result.
-func parseDiffTables(csv string) []string {
-	lines := strings.Split(strings.TrimSpace(csv), "\n")
-	if len(lines) < 2 {
+// Uses csv.Reader to correctly handle quoted table names containing commas.
+func parseDiffTables(csvData string) []string {
+	reader := csv.NewReader(strings.NewReader(csvData))
+	records, err := reader.ReadAll()
+	if err != nil || len(records) < 2 {
 		return nil
 	}
 	var tables []string
-	for _, line := range lines[1:] {
-		parts := strings.SplitN(line, ",", 2)
-		name := strings.TrimSpace(parts[0])
-		if name != "" {
-			tables = append(tables, name)
+	for _, record := range records[1:] {
+		if len(record) > 0 {
+			name := strings.TrimSpace(record[0])
+			if name != "" {
+				tables = append(tables, name)
+			}
 		}
 	}
 	return tables
@@ -507,7 +510,7 @@ func (r *RemoteDB) pollOperation(operationName string) error {
 		}
 
 		apiURL := fmt.Sprintf("%s/%s/%s/write?operationName=%s",
-			DoltHubAPIBase, r.writeOwner, r.writeDB, operationName)
+			DoltHubAPIBase, r.writeOwner, r.writeDB, url.QueryEscape(operationName))
 
 		body, err := r.doGet(apiURL)
 		if err != nil {

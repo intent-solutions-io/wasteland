@@ -70,8 +70,10 @@ func clearBranchData(db commons.DB, branch string) error {
 	esc := commons.EscapeSQL(wantedID)
 	// DoltHub write API accepts only one statement per call.
 	// Delete completions first (FK dependency), then the wanted item.
-	_ = db.Exec(branch, "wl discard: "+wantedID, false,
-		fmt.Sprintf("DELETE FROM completions WHERE wanted_id='%s'", esc))
+	if err := db.Exec(branch, "wl discard: "+wantedID, false,
+		fmt.Sprintf("DELETE FROM completions WHERE wanted_id='%s'", esc)); err != nil {
+		return fmt.Errorf("delete completions: %w", err)
+	}
 	return db.Exec(branch, "wl discard: "+wantedID, false,
 		fmt.Sprintf("DELETE FROM wanted WHERE id='%s'", esc))
 }

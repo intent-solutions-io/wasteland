@@ -100,7 +100,8 @@ func (ce *CachedEndpoint) refresh() {
 	ce.mu.Unlock()
 }
 
-// Get returns the cached JSON. If the cache is empty, triggers a synchronous load.
+// Get returns the cached JSON, or nil if no data is available yet.
+// If the cache is empty, triggers a synchronous load.
 func (ce *CachedEndpoint) Get() []byte {
 	ce.mu.RLock()
 	data := ce.cached
@@ -168,5 +169,7 @@ func (s *Server) handleScoreboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.Warn("failed to write scoreboard response", "error", err)
+	}
 }

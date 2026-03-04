@@ -56,15 +56,17 @@ func (rl *RateLimiter) Allow(key string) bool {
 		return true
 	}
 
-	// Refill tokens based on elapsed time.
+	// Refill tokens based on elapsed time. Advance lastFill by exactly
+	// the consumed intervals to preserve fractional time for the next check.
 	elapsed := now.Sub(b.lastFill)
-	refill := int(elapsed/rl.interval) * rl.rate
+	intervals := int(elapsed / rl.interval)
+	refill := intervals * rl.rate
 	if refill > 0 {
 		b.tokens += refill
 		if b.tokens > rl.burst {
 			b.tokens = rl.burst
 		}
-		b.lastFill = now
+		b.lastFill = b.lastFill.Add(time.Duration(intervals) * rl.interval)
 	}
 
 	if b.tokens <= 0 {
@@ -116,8 +118,9 @@ func clientIP(r *http.Request) string {
 func RateLimit(rl *RateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !rl.Allow(clientIP(r)) {
-				slog.Warn("rate limit exceeded", "client_ip", clientIP(r), "method", r.Method, "path", r.URL.Path)
+			ip := clientIP(r)
+			if !rl.Allow(ip) {
+				slog.Warn("rate limit exceeded", "client_ip", ip, "method", r.Method, "path", r.URL.Path)
 				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}

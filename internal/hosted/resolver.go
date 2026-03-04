@@ -2,6 +2,7 @@ package hosted
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -142,7 +143,9 @@ func (wr *WorkspaceResolver) buildClient(wl *WastelandConfig, rigHandle, connect
 			if err != nil && strings.Contains(err.Error(), "already exists") {
 				existingURL, existingID := provider.FindPR(upOrg, upDB, wl.ForkOrg, branch)
 				if existingID != "" {
-					_ = provider.UpdatePR(upOrg, upDB, existingID, prTitle, prBody)
+					if uerr := provider.UpdatePR(upOrg, upDB, existingID, prTitle, prBody); uerr != nil {
+						slog.Warn("failed to update existing PR", "pr_id", existingID, "error", uerr)
+					}
 					return existingURL, nil
 				}
 			}

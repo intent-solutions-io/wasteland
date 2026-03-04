@@ -126,18 +126,27 @@ func (c *Client) Close(wantedID string) (*MutationResult, error) {
 // we skip the mutation and just clean up the branch instead.
 func (c *Client) Delete(wantedID string) (*MutationResult, error) {
 	if c.mode == "pr" {
+		// Hold lock for the entire check-then-act to prevent a concurrent
+		// Post from creating the item on main between the query and cleanup.
+		c.mu.Lock()
+
+		if result := c.prIdempotentLocked(wantedID, "withdrawn"); result != nil {
+			c.mu.Unlock()
+			return result, nil
+		}
+
 		branch := commons.BranchName(c.rigHandle, wantedID)
 		mainStatus, _, _ := commons.QueryItemStatus(c.db, wantedID, "main")
 		if mainStatus == "" {
 			// Item only exists on branch — clean up branch and close any PR.
-			c.mu.Lock()
-			defer c.mu.Unlock()
 			c.cleanupBranch(branch)
+			c.mu.Unlock()
 			return &MutationResult{
 				Branch: branch,
 				Hint:   "branch-only item — branch deleted",
 			}, nil
 		}
+		c.mu.Unlock()
 	}
 	stmts := []string{commons.DeleteWantedDML(wantedID)}
 	return c.mutate(wantedID, "wl delete: "+wantedID, stmts...)

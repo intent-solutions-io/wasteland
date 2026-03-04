@@ -155,7 +155,10 @@ GROUP BY completed_by`, strings.Join(handles, ","))
 	rows := parseSimpleCSV(output)
 	counts := make(map[string]int)
 	for _, row := range rows {
-		c, _ := strconv.Atoi(row["completions"])
+		c, err := strconv.Atoi(row["completions"])
+		if err != nil {
+			return fmt.Errorf("parsing completion count for %q: %w", row["completed_by"], err)
+		}
 		counts[row["completed_by"]] = c
 	}
 

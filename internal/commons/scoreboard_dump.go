@@ -117,7 +117,10 @@ FROM rigs ORDER BY handle`
 	rows := parseSimpleCSV(output)
 	result := make([]RigRow, 0, len(rows))
 	for _, r := range rows {
-		tl, _ := strconv.Atoi(r["trust_level"])
+		tl, err := strconv.Atoi(r["trust_level"])
+		if err != nil && r["trust_level"] != "" && r["trust_level"] != "0" {
+			return nil, fmt.Errorf("parsing trust_level for %q: %w", r["handle"], err)
+		}
 		result = append(result, RigRow{
 			Handle:       r["handle"],
 			DisplayName:  r["display_name"],
@@ -147,7 +150,10 @@ FROM stamps ORDER BY created_at DESC`
 	rows := parseSimpleCSV(output)
 	result := make([]StampRow, 0, len(rows))
 	for _, r := range rows {
-		conf, _ := strconv.ParseFloat(r["confidence"], 64)
+		conf, err := strconv.ParseFloat(r["confidence"], 64)
+		if err != nil && r["confidence"] != "" {
+			return nil, fmt.Errorf("parsing confidence for stamp %q: %w", r["id"], err)
+		}
 		result = append(result, StampRow{
 			ID:          r["id"],
 			Author:      r["author"],
@@ -210,7 +216,10 @@ FROM wanted ORDER BY created_at DESC`
 	rows := parseSimpleCSV(output)
 	result := make([]WantedRow, 0, len(rows))
 	for _, r := range rows {
-		p, _ := strconv.Atoi(r["priority"])
+		p, err := strconv.Atoi(r["priority"])
+		if err != nil && r["priority"] != "" && r["priority"] != "0" {
+			return nil, fmt.Errorf("parsing priority for wanted %q: %w", r["id"], err)
+		}
 		result = append(result, WantedRow{
 			ID:          r["id"],
 			Title:       r["title"],

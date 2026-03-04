@@ -171,7 +171,10 @@ func (n *NangoClient) GetConnection(connectionID string) (string, *UserMetadata,
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			body = []byte("(could not read body)")
+		}
 		return "", nil, fmt.Errorf("nango returned %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -229,7 +232,10 @@ func (n *NangoClient) CreateConnectSession(endUserID string) (string, error) {
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			respBody = []byte("(could not read body)")
+		}
 		return "", fmt.Errorf("nango returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -266,7 +272,10 @@ func (n *NangoClient) SetMetadata(connectionID string, meta *UserMetadata) error
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			respBody = []byte("(could not read body)")
+		}
 		return fmt.Errorf("nango returned %d: %s", resp.StatusCode, string(respBody))
 	}
 	return nil

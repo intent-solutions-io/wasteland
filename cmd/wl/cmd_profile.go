@@ -49,6 +49,9 @@ func runProfile(_ *cobra.Command, stdout, _ io.Writer, handle string) error {
 	if err != nil {
 		return err
 	}
+	if profile == nil {
+		return fmt.Errorf("profile not found for %q", handle)
+	}
 
 	// Header
 	name := profile.DisplayName

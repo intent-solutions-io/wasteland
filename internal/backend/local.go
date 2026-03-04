@@ -134,15 +134,16 @@ func injectAsOf(sql, ref string) string {
 		return sql
 	}
 
-	// Find the table name after FROM.
+	// Find the table name after FROM (skip any extra whitespace).
 	afterFrom := sql[fromIdx+6:]
-	// Table name ends at space, WHERE, ORDER, LIMIT, GROUP, HAVING, JOIN, or semicolon.
-	tableName := extractTableName(afterFrom)
+	trimmed := strings.TrimLeft(afterFrom, " \t\n\r")
+	leadingSpace := len(afterFrom) - len(trimmed)
+	tableName := extractTableName(trimmed)
 	if tableName == "" {
 		return sql
 	}
 
-	rest := afterFrom[len(tableName):]
+	rest := afterFrom[leadingSpace+len(tableName):]
 	return sql[:fromIdx+6] + tableName + fmt.Sprintf(" AS OF '%s'", escaped) + rest
 }
 

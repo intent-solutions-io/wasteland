@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -49,7 +50,9 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=15, stale-while-revalidate=30")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.Warn("failed to write browse response", "error", err)
+	}
 }
 
 func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +80,9 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=15, stale-while-revalidate=30")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.Warn("failed to write detail response", "error", err)
+	}
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -158,9 +163,11 @@ func canonicalBrowseKey(r *http.Request) string {
 }
 
 // invalidateReadCaches busts browse and detail caches after a mutation.
-func (s *Server) invalidateReadCaches(itemID string) {
+// Detail cache keys are prefixed with RigHandle (e.g. "rig:itemID"), so
+// we invalidate the entire detail cache to cover all user-specific entries.
+func (s *Server) invalidateReadCaches(_ string) {
 	s.browseCache.Invalidate()
-	s.detailCache.InvalidateKey(itemID)
+	s.detailCache.Invalidate()
 }
 
 // invalidateAllCaches busts both browse and detail caches entirely.

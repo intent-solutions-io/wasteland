@@ -140,7 +140,10 @@ GROUP BY subject, severity`, inClause)
 		if perRig[rig] == nil {
 			perRig[rig] = &sevCounts{}
 		}
-		cnt, _ := strconv.Atoi(row["cnt"])
+		cnt, err := strconv.Atoi(row["cnt"])
+		if err != nil {
+			return fmt.Errorf("parsing severity count for %q: %w", rig, err)
+		}
 		switch row["severity"] {
 		case "root":
 			perRig[rig].root = cnt
@@ -186,8 +189,14 @@ ORDER BY subject, created_at DESC`, inClause)
 		if len(perRig[rig]) >= 50 {
 			continue
 		}
-		q, _ := strconv.ParseFloat(row["quality"], 64)
-		r, _ := strconv.ParseFloat(row["reliability"], 64)
+		q, err := strconv.ParseFloat(row["quality"], 64)
+		if err != nil {
+			return fmt.Errorf("parsing quality for %q: %w", rig, err)
+		}
+		r, err := strconv.ParseFloat(row["reliability"], 64)
+		if err != nil {
+			return fmt.Errorf("parsing reliability for %q: %w", rig, err)
+		}
 		sd := StampDetail{
 			Author:      row["author"],
 			Severity:    row["severity"],

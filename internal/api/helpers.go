@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,7 +13,9 @@ import (
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("failed to encode JSON response", "error", err)
+	}
 }
 
 // writeError writes a JSON error response.
@@ -22,7 +25,6 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 // decodeJSON reads the request body as JSON into v.
 func decodeJSON(r *http.Request, v any) error {
-	defer r.Body.Close() //nolint:errcheck // best-effort close
 	return json.NewDecoder(r.Body).Decode(v)
 }
 

@@ -119,12 +119,16 @@ func ComputeBranchActions(mode, branch, delta, prURL string, hasDelete bool) []s
 		return nil
 	}
 	var actions []string
-	if mode == "pr" {
+	switch mode {
+	case "pr":
 		if prURL == "" {
 			actions = append(actions, "submit_pr")
 		}
-	} else {
+	case "wild-west":
 		actions = append(actions, "apply")
+	default:
+		// Unknown mode — return no actions rather than offering wrong operations.
+		return nil
 	}
 	if !hasDelete {
 		actions = append(actions, "discard")

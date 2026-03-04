@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -536,7 +537,10 @@ func queryWantedDetailRef(db DB, wantedID, ref string) (*WantedItem, error) {
 	}
 
 	row := rows[0]
-	priority, _ := strconv.Atoi(row["priority"])
+	priority, err := strconv.Atoi(row["priority"])
+	if err != nil && row["priority"] != "" {
+		slog.Warn("malformed priority value", "wanted_id", wantedID, "value", row["priority"])
+	}
 
 	return &WantedItem{
 		ID:          row["id"],
@@ -770,8 +774,8 @@ func RejectCompletionDML(wantedID string) []string {
 }
 
 // RejectCompletion reverts a wanted item from in_review to claimed.
-func RejectCompletion(db DB, wantedID, _, reason string, signed bool) error {
-	commitMsg := fmt.Sprintf("wl reject: %s", wantedID)
+func RejectCompletion(db DB, wantedID, rigHandle, reason string, signed bool) error {
+	commitMsg := fmt.Sprintf("wl reject by %s: %s", rigHandle, wantedID)
 	if reason != "" {
 		if len(reason) > 500 {
 			reason = reason[:500] + "..."

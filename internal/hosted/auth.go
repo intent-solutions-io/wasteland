@@ -89,7 +89,11 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			s.sessions.Restore(sessionID, connectionID)
-			session, _ = s.sessions.Get(sessionID)
+			session, ok = s.sessions.Get(sessionID)
+			if !ok {
+				passOrBlock(w, r, http.StatusUnauthorized, "session restoration failed")
+				return
+			}
 		}
 
 		if session.ConnectionID == "" {

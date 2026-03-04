@@ -104,6 +104,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		return m, nil
 
 	case actionRequestMsg:
+		if m.detail.item == nil {
+			return m, nil
+		}
 		if m.cfg.Mode == "pr" {
 			// PR mode: skip confirmation, execute immediately.
 			m.detail.executing = true
@@ -125,6 +128,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		return m, nil
 
 	case actionConfirmedMsg:
+		if m.detail.item == nil {
+			return m, nil
+		}
 		m.detail.confirming = nil
 		m.detail.executing = true
 		m.detail.executingLabel = commons.TransitionLabel(msg.transition)
@@ -192,9 +198,15 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, fetchBrowse(m.cfg, m.browse.filter(m.cfg.RigHandle))
 		}
 		// Apply resolved — re-fetch detail from main (branch is gone).
+		if m.detail.item == nil {
+			return m, nil
+		}
 		return m, fetchDetail(m.cfg, m.detail.item.ID)
 
 	case doneSubmitMsg:
+		if m.detail.item == nil {
+			return m, nil
+		}
 		m.detail.doneForm = nil
 		m.detail.executing = true
 		m.detail.executingLabel = "Submitting..."
@@ -205,6 +217,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		)
 
 	case acceptSubmitMsg:
+		if m.detail.item == nil {
+			return m, nil
+		}
 		m.detail.acceptForm = nil
 		m.detail.executing = true
 		m.detail.executingLabel = "Accepting..."
