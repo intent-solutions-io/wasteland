@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -165,6 +166,16 @@ func runServe(cmd *cobra.Command, stdout, stderr io.Writer) error {
 	scoreboardCache.Start()
 	defer scoreboardCache.Stop()
 
+	detailCache := api.NewCachedEndpoint(newDetailRefresh(db), 5*time.Minute)
+	server.SetScoreboardDetail(detailCache)
+	detailCache.Start()
+	defer detailCache.Stop()
+
+	dumpCache := api.NewCachedEndpoint(newDumpRefresh(db), 5*time.Minute)
+	server.SetScoreboardDump(dumpCache)
+	dumpCache.Start()
+	defer dumpCache.Stop()
+
 	generalRL := api.RateLimit(api.NewRateLimiter(120, 120, time.Minute))
 	bodyLimit := api.MaxBytesBody(64 << 10) // 64 KB
 	handler := api.RequestLog(logger)(api.SecurityHeaders(generalRL(bodyLimit(api.SPAHandler(server, web.Assets)))))
@@ -223,6 +234,16 @@ func runServeHosted(cmd *cobra.Command, stdout, _ io.Writer) error {
 	scoreboardCache.Start()
 	defer scoreboardCache.Stop()
 
+	hostedDetailCache := api.NewCachedEndpoint(newDetailRefresh(publicDB), 5*time.Minute)
+	apiServer.SetScoreboardDetail(hostedDetailCache)
+	hostedDetailCache.Start()
+	defer hostedDetailCache.Stop()
+
+	hostedDumpCache := api.NewCachedEndpoint(newDumpRefresh(publicDB), 5*time.Minute)
+	apiServer.SetScoreboardDump(hostedDumpCache)
+	hostedDumpCache.Start()
+	defer hostedDumpCache.Stop()
+
 	// Anonymous client for unauthenticated public reads (browse, detail, etc.).
 	anonClient := sdk.New(sdk.ClientConfig{DB: publicDB})
 	apiServer.SetPublicClient(anonClient)
@@ -241,4 +262,26 @@ func runServeHosted(cmd *cobra.Command, stdout, _ io.Writer) error {
 	slog.Info("nango configured", "integration_id", nangoClient.IntegrationID())
 	srv := &http.Server{Addr: addr, Handler: handler, MaxHeaderBytes: 1 << 20} //nolint:gosec // bind addr is user-controlled via --port flag
 	return srv.ListenAndServe()
+}
+
+// newDetailRefresh returns a refresh callback for the scoreboard detail cache.
+func newDetailRefresh(db commons.DB) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		entries, err := commons.QueryScoreboardDetail(db, 100)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(entries)
+	}
+}
+
+// newDumpRefresh returns a refresh callback for the scoreboard dump cache.
+func newDumpRefresh(db commons.DB) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		dump, err := commons.QueryScoreboardDump(db)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(dump)
+	}
 }

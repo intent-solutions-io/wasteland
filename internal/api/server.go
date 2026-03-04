@@ -20,13 +20,15 @@ type WorkspaceFunc func(r *http.Request) (*sdk.Workspace, error)
 
 // Server is the HTTP API server wrapping an SDK client.
 type Server struct {
-	clientFunc    ClientFunc
-	workspaceFunc WorkspaceFunc
-	pile          pile.RowQuerier
-	scoreboard    *ScoreboardCache
-	publicClient  *sdk.Client // anonymous fallback for public reads (hosted mode)
-	mux           *http.ServeMux
-	hosted        bool // true when running in multi-tenant hosted mode
+	clientFunc       ClientFunc
+	workspaceFunc    WorkspaceFunc
+	pile             pile.RowQuerier
+	scoreboard       *CachedEndpoint
+	scoreboardDetail *CachedEndpoint
+	scoreboardDump   *CachedEndpoint
+	publicClient     *sdk.Client // anonymous fallback for public reads (hosted mode)
+	mux              *http.ServeMux
+	hosted           bool // true when running in multi-tenant hosted mode
 }
 
 // New creates a Server backed by the given SDK client.
@@ -79,8 +81,18 @@ func (s *Server) SetProfileQuerier(pq pile.RowQuerier) {
 }
 
 // SetScoreboard sets the scoreboard cache for the public scoreboard endpoint.
-func (s *Server) SetScoreboard(sc *ScoreboardCache) {
+func (s *Server) SetScoreboard(sc *CachedEndpoint) {
 	s.scoreboard = sc
+}
+
+// SetScoreboardDetail sets the scoreboard detail cache.
+func (s *Server) SetScoreboardDetail(ce *CachedEndpoint) {
+	s.scoreboardDetail = ce
+}
+
+// SetScoreboardDump sets the scoreboard dump cache.
+func (s *Server) SetScoreboardDump(ce *CachedEndpoint) {
+	s.scoreboardDump = ce
 }
 
 // SetPublicClient sets an anonymous SDK client for unauthenticated public reads.

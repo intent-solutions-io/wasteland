@@ -30,6 +30,10 @@ func (s *Server) registerRoutes() {
 	// Public endpoints (read-only, no auth).
 	s.mux.HandleFunc("GET /api/scoreboard", s.handleScoreboard)
 	s.mux.HandleFunc("OPTIONS /api/scoreboard", s.handleScoreboard)
+	s.mux.HandleFunc("GET /api/scoreboard/detail", s.handleScoreboardDetail)
+	s.mux.HandleFunc("OPTIONS /api/scoreboard/detail", s.handleScoreboardDetail)
+	s.mux.HandleFunc("GET /api/scoreboard/dump", s.handleScoreboardDump)
+	s.mux.HandleFunc("OPTIONS /api/scoreboard/dump", s.handleScoreboardDump)
 
 	// Profile endpoints (read-only, no auth).
 	s.mux.HandleFunc("GET /api/profile/{handle}", s.handleProfile)

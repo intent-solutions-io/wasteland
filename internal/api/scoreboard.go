@@ -30,88 +30,92 @@ type ScoreboardEntryJSON struct {
 	TopSkills      []string `json:"top_skills,omitempty"`
 }
 
-// ScoreboardCache manages a cached, periodically refreshed scoreboard.
-type ScoreboardCache struct {
+// CachedEndpoint manages a cached, periodically refreshed JSON endpoint.
+type CachedEndpoint struct {
 	mu        sync.RWMutex
 	cached    []byte // pre-serialized JSON
 	updatedAt time.Time
-	db        commons.DB
+	refreshFn func() ([]byte, error)
 	interval  time.Duration
 	done      chan struct{}
 }
 
-// NewScoreboardCache creates a new scoreboard cache.
-func NewScoreboardCache(db commons.DB, interval time.Duration) *ScoreboardCache {
-	return &ScoreboardCache{
-		db:       db,
-		interval: interval,
-		done:     make(chan struct{}),
+// NewCachedEndpoint creates a new cached endpoint with a generic refresh callback.
+func NewCachedEndpoint(refreshFn func() ([]byte, error), interval time.Duration) *CachedEndpoint {
+	return &CachedEndpoint{
+		refreshFn: refreshFn,
+		interval:  interval,
+		done:      make(chan struct{}),
 	}
 }
 
+// NewScoreboardCache creates a CachedEndpoint that refreshes scoreboard data.
+func NewScoreboardCache(db commons.DB, interval time.Duration) *CachedEndpoint {
+	return NewCachedEndpoint(func() ([]byte, error) {
+		entries, err := commons.QueryScoreboard(db, 100)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(toScoreboardResponse(entries))
+	}, interval)
+}
+
 // Start begins the background refresh goroutine.
-func (sc *ScoreboardCache) Start() {
-	go sc.run()
+func (ce *CachedEndpoint) Start() {
+	go ce.run()
 }
 
 // Stop halts the background refresh goroutine.
-func (sc *ScoreboardCache) Stop() {
-	close(sc.done)
+func (ce *CachedEndpoint) Stop() {
+	close(ce.done)
 }
 
-func (sc *ScoreboardCache) run() {
+func (ce *CachedEndpoint) run() {
 	// Initial load.
-	sc.refresh()
+	ce.refresh()
 
-	ticker := time.NewTicker(sc.interval)
+	ticker := time.NewTicker(ce.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-sc.done:
+		case <-ce.done:
 			return
 		case <-ticker.C:
-			sc.refresh()
+			ce.refresh()
 		}
 	}
 }
 
-func (sc *ScoreboardCache) refresh() {
-	entries, err := commons.QueryScoreboard(sc.db, 100)
+func (ce *CachedEndpoint) refresh() {
+	data, err := ce.refreshFn()
 	if err != nil {
-		slog.Warn("scoreboard refresh failed", "error", err)
+		slog.Warn("cached endpoint refresh failed", "error", err)
 		return
 	}
 
-	resp := toScoreboardResponse(entries)
-	data, err := json.Marshal(resp)
-	if err != nil {
-		slog.Warn("scoreboard marshal failed", "error", err)
-		return
-	}
-
-	sc.mu.Lock()
-	sc.cached = data
-	sc.updatedAt = time.Now().UTC()
-	sc.mu.Unlock()
+	ce.mu.Lock()
+	ce.cached = data
+	ce.updatedAt = time.Now().UTC()
+	ce.mu.Unlock()
 }
 
 // Get returns the cached JSON. If the cache is empty, triggers a synchronous load.
-func (sc *ScoreboardCache) Get() []byte {
-	sc.mu.RLock()
-	data := sc.cached
-	sc.mu.RUnlock()
+func (ce *CachedEndpoint) Get() []byte {
+	ce.mu.RLock()
+	data := ce.cached
+	ce.mu.RUnlock()
 
 	if data != nil {
 		return data
 	}
 
 	// First request: synchronous load.
-	sc.refresh()
+	ce.refresh()
 
-	sc.mu.RLock()
-	data = sc.cached
-	sc.mu.RUnlock()
+	ce.mu.RLock()
+	data = ce.cached
+	ce.mu.RUnlock()
 	return data
 }
 
