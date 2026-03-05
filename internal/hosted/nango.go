@@ -3,10 +3,13 @@ package hosted
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -207,7 +210,28 @@ type connectSessionAPIResponse struct {
 }
 
 // CreateConnectSession creates a short-lived connect session token for the frontend SDK.
+// Retries once on transient errors (timeouts, 5xx).
 func (n *NangoClient) CreateConnectSession(endUserID string) (string, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			time.Sleep(2 * time.Second)
+		}
+		token, err := n.doCreateConnectSession(endUserID)
+		if err == nil {
+			return token, nil
+		}
+		lastErr = err
+		// Only retry on timeouts or 5xx — not on 4xx client errors.
+		if !isRetryable(err) {
+			return "", err
+		}
+		slog.Warn("nango connect session failed, retrying", "attempt", attempt+1, "error", err)
+	}
+	return "", fmt.Errorf("nango is not responding — please try again in a moment: %w", lastErr)
+}
+
+func (n *NangoClient) doCreateConnectSession(endUserID string) (string, error) {
 	u := fmt.Sprintf("%s/connect/sessions", n.baseURL)
 
 	body, err := json.Marshal(connectSessionAPIRequest{
@@ -231,6 +255,11 @@ func (n *NangoClient) CreateConnectSession(endUserID string) (string, error) {
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
+	if resp.StatusCode >= 500 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", &retryableError{msg: fmt.Sprintf("nango returned %d: %s", resp.StatusCode, string(respBody))}
+	}
+
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
@@ -245,6 +274,25 @@ func (n *NangoClient) CreateConnectSession(endUserID string) (string, error) {
 	}
 
 	return sessionResp.Data.Token, nil
+}
+
+// retryableError wraps an error that should be retried.
+type retryableError struct{ msg string }
+
+func (e *retryableError) Error() string { return e.msg }
+
+// isRetryable returns true for timeout errors and retryableError.
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	var re *retryableError
+	if errors.As(err, &re) {
+		return true
+	}
+	// Timeout errors (context deadline exceeded, client timeout).
+	return strings.Contains(err.Error(), "deadline exceeded") ||
+		strings.Contains(err.Error(), "Timeout exceeded")
 }
 
 // SetMetadata writes/updates the persistent user metadata on the Nango connection.
