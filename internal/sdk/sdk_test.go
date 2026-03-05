@@ -842,8 +842,8 @@ func TestBrowse_PendingFurthestState(t *testing.T) {
 			if item.Status != "in_review" {
 				t.Errorf("w-1: expected Status='in_review' (furthest), got %q", item.Status)
 			}
-			if item.ClaimedBy != "dave (pending)" {
-				t.Errorf("w-1: expected ClaimedBy='dave (pending)', got %q", item.ClaimedBy)
+			if item.ClaimedBy != "Multiple (pending)" {
+				t.Errorf("w-1: expected ClaimedBy='Multiple (pending)', got %q", item.ClaimedBy)
 			}
 			// Badge count should be 2.
 			if result.PendingIDs["w-1"] != 2 {
